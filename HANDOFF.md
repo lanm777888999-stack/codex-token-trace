@@ -2,7 +2,7 @@
 
 <!-- project-archive-sync:start -->
 > 更新时间：2026-08-17 18:04（Asia/Shanghai）
-> 同步目标：origin/codex/token-trace-dashboard
+> 同步目标：archive/codex/token-trace-dashboard（私有归档仓库）
 
 ## 一句话说明
 
