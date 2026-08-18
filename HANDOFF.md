@@ -1,7 +1,7 @@
 # 项目交接
 
 <!-- project-archive-sync:start -->
-> 更新时间：2026-08-18 17:58（Asia/Shanghai）
+> 更新时间：2026-08-18 18:02（Asia/Shanghai）
 > 同步目标：public/main（lanm777888999-stack/codex-token-trace）
 
 ## 一句话说明
@@ -21,8 +21,8 @@ Token Trace 是 Codex / ChatGPT Windows 桌面版的本机 Token 分析伴生工
 ## 当前状态
 
 - 分支：`codex/token-trace-dashboard`
-- 工作树：包含待提交的安装器限流修复、便携包构建和文档清理。
-- 运行状态：离线安装器/URL 构造自检和便携 ZIP 构建已验证；尚未在干净 Windows 用户环境执行真实安装。
+- 工作树：安装器限流修复已推送至 `public/main`，`v1.0.0` GitHub Release 已发布。
+- 运行状态：离线安装器/URL 构造自检、远端 jsDelivr 与 Raw 标签版脚本读取、便携 ZIP 构建均已验证；尚未在干净 Windows 用户环境执行真实安装。
 
 ## 启动与测试
 
@@ -34,7 +34,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\floating-panel.ps1 -SelfTe
 node --check token-stats.mjs
 ```
 
-- 验证结果：安装器语法与 URL 自检、无 GitHub API 主机检查、项目发布自检、Node 语法、悬浮窗自检、便携 ZIP 内容检查均通过；未运行真实安装。
+- 验证结果：安装器语法与 URL 自检、无 GitHub API 主机检查、项目发布自检、Node 语法、悬浮窗自检、便携 ZIP 内容检查均通过；jsDelivr 与 GitHub Raw 标签版安装脚本均可读取；未运行真实安装。
 
 ## 重要位置
 
@@ -53,7 +53,7 @@ node --check token-stats.mjs
 ## 已知问题
 
 - `Win32_ProcessStartTrace` 在部分普通用户 Windows 会被系统拒绝；守护会回退到 WMI 实例事件，启动/退出感知约为秒级。
-- 首个 `v1.0.0` 标签与 GitHub Release 尚待本次提交推送后创建。
+- 首次真实安装仍应使用干净 Windows 用户环境验证命令行和便携包两条路径。
 
 ## 下一步
 
