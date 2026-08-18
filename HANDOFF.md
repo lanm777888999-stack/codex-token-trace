@@ -1,7 +1,7 @@
 # 项目交接
 
 <!-- project-archive-sync:start -->
-> 更新时间：2026-08-18 17:20（Asia/Shanghai）
+> 更新时间：2026-08-18 17:24（Asia/Shanghai）
 > 同步目标：public/main（lanm777888999-stack/codex-token-trace）
 
 ## 一句话说明
@@ -18,8 +18,8 @@ Token Trace 是 Codex / ChatGPT Windows 桌面版的本机 Token 分析伴生工
 ## 当前状态
 
 - 分支：`codex/token-trace-dashboard`
-- 工作树：包含待提交的公开发布改动。
-- 运行状态：本机服务、WMI 守护和悬浮窗已验证；公开 GitHub 一键安装命令需在提交推送到 `main` 后首次外部验证。
+- 工作树：包含公开链接修正的待提交改动。
+- 运行状态：本机服务、WMI 守护和悬浮窗已验证；公开安装器已可通过 GitHub Raw 读取，仍应在干净 Windows 用户环境完成端到端安装验证。
 
 ## 启动与测试
 
@@ -29,7 +29,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\floating-panel.ps1 -SelfTe
 node --check token-stats.mjs
 ```
 
-- 验证结果：以上命令通过；`/api/health` 已在本机验证。远端下载安装器尚未运行，因为本次改动尚未推送。
+- 验证结果：以上命令通过；`/api/health` 已在本机验证，公开 `Install-TokenTrace.ps1` 的 Raw 地址返回 HTTP 200。
 
 ## 重要位置
 
@@ -47,10 +47,10 @@ node --check token-stats.mjs
 ## 已知问题
 
 - `Win32_ProcessStartTrace` 在部分普通用户 Windows 会被系统拒绝；守护会回退到 WMI 实例事件，启动/退出感知约为秒级。
-- 一键安装器引用公开仓库 `lanm777888999-stack/codex-token-trace` 的 `main` 分支，必须在推送后才可被外部用户使用。
+- `Win32_ProcessStartTrace` 在部分普通用户 Windows 会被系统拒绝；守护会回退到 WMI 实例事件，启动/退出感知约为秒级。
 
 ## 下一步
 
-1. 推送当前分支到公开仓库 `public/main` 后，在干净 Windows 用户环境运行 README 的一行安装命令。
+1. 在干净 Windows 用户环境运行 README 的一行安装命令。
 2. 根据首次外部测试结果补充兼容性说明或故障排查。
 <!-- project-archive-sync:end -->

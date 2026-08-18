@@ -155,7 +155,7 @@ npm install          # 首次需要：安装 @yao-pkg/pkg
 
 ## 📝 环境测试报告（欢迎参与）
 
-欢迎大家测试后分享自己的运行环境，帮助项目收集更多兼容性数据。请在 [GitHub Discussions](https://github.com/THaoKun2022/ccm-token-spend/discussions) 的 **General** 分类新建讨论，按模板填写即可（会自动带上「测试报告」标签）：
+欢迎大家测试后分享自己的运行环境，帮助项目收集更多兼容性数据。请在 [GitHub Discussions](https://github.com/lanm777888999-stack/codex-token-trace/discussions) 的 **General** 分类新建讨论，按模板填写即可（会自动带上「测试报告」标签）：
 
 - **Release 版本号**：如 `v1.2-node`（Node 版）/ `v1.2-exe`（内置 Node 版）
 - **操作系统**：如 Windows 10 / Windows 11
