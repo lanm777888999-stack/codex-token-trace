@@ -18,7 +18,7 @@ Token Trace 是 Codex / ChatGPT Windows 桌面版的本机 Token 分析伴生工
 ## 当前状态
 
 - 分支：`codex/token-trace-dashboard`
-- 工作树：包含公开链接修正的待提交改动。
+- 工作树：公开发布改动已推送至 `public/main`。
 - 运行状态：本机服务、WMI 守护和悬浮窗已验证；公开安装器已可通过 GitHub Raw 读取，仍应在干净 Windows 用户环境完成端到端安装验证。
 
 ## 启动与测试
@@ -46,7 +46,6 @@ node --check token-stats.mjs
 
 ## 已知问题
 
-- `Win32_ProcessStartTrace` 在部分普通用户 Windows 会被系统拒绝；守护会回退到 WMI 实例事件，启动/退出感知约为秒级。
 - `Win32_ProcessStartTrace` 在部分普通用户 Windows 会被系统拒绝；守护会回退到 WMI 实例事件，启动/退出感知约为秒级。
 
 ## 下一步
