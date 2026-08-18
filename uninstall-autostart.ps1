@@ -1,39 +1,34 @@
-﻿# 卸载 ccm-token-spend 守护进程，并停止由守护启动的监控进程
-$ErrorActionPreference = "Continue"
+# Uninstall the Token Trace WMI guardian and stop only its running processes.
+# Local preferences, prices, theme and floating-cover image are deliberately preserved.
 
-# 1) 删除计划任务
+$ErrorActionPreference = "Continue"
 $taskName = "ccm-token-spend-guardian"
+
 try {
   $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
   if ($task) {
     Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
-    Write-Host ("已删除计划任务：" + $taskName) -ForegroundColor Green
+    Write-Host ("Scheduled task removed: " + $taskName) -ForegroundColor Green
   }
 } catch {
-  Write-Host ("删除计划任务失败：" + $_.Exception.Message) -ForegroundColor Yellow
+  Write-Host ("Failed to remove scheduled task: " + $_.Exception.Message) -ForegroundColor Yellow
 }
 
-# 2) 删除启动文件夹快捷方式
-$startup = [Environment]::GetFolderPath("Startup")
-$lnkPath = Join-Path $startup "ccm-token-spend-guardian.lnk"
-if (Test-Path -LiteralPath $lnkPath) {
-  Remove-Item -LiteralPath $lnkPath -Force
-  Write-Host ("已删除启动文件夹快捷方式：" + $lnkPath) -ForegroundColor Green
+$startupLink = Join-Path ([Environment]::GetFolderPath("Startup")) "ccm-token-spend-guardian.lnk"
+if (Test-Path -LiteralPath $startupLink) {
+  Remove-Item -LiteralPath $startupLink -Force
+  Write-Host "Removed legacy Startup shortcut." -ForegroundColor Green
 }
 
-# 3) 停止守护进程与监控，清理状态目录
 $stateDir = Join-Path $env:LOCALAPPDATA "ccm-token-spend"
-$gp = Join-Path $stateDir "guardian.pid"
-if (Test-Path -LiteralPath $gp) {
-  $raw = Get-Content -LiteralPath $gp -Raw -ErrorAction SilentlyContinue
-  if ($raw -match '^\s*(\d+)\s*$') { Stop-Process -Id ([int]$Matches[1]) -Force -ErrorAction SilentlyContinue }
+foreach ($name in @("guardian.pid", "server.pid", "floating-panel.pid", "monitor.pid")) {
+  $pidFile = Join-Path $stateDir $name
+  if (-not (Test-Path -LiteralPath $pidFile)) { continue }
+  $raw = Get-Content -LiteralPath $pidFile -Raw -ErrorAction SilentlyContinue
+  if ($raw -match '^\s*(\d+)\s*$') {
+    Stop-Process -Id ([int]$Matches[1]) -Force -ErrorAction SilentlyContinue
+  }
+  Remove-Item -LiteralPath $pidFile -Force -ErrorAction SilentlyContinue
 }
-$mp = Join-Path $stateDir "monitor.pid"
-if (Test-Path -LiteralPath $mp) {
-  $raw = Get-Content -LiteralPath $mp -Raw -ErrorAction SilentlyContinue
-  if ($raw -match '^\s*(\d+)\s*$') { Stop-Process -Id ([int]$Matches[1]) -Force -ErrorAction SilentlyContinue }
-}
-Remove-Item -LiteralPath $stateDir -Recurse -Force -ErrorAction SilentlyContinue
 
-Write-Host "已移除开机自启守护进程并停止由它启动的监控。" -ForegroundColor Green
-Write-Host "（手动打开的监控窗口需要自行关闭）"
+Write-Host "WMI guardian removed. Token Trace processes stopped; local theme, prices and cover were kept." -ForegroundColor Green

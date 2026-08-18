@@ -4,7 +4,7 @@
 
 > 🤖 如果你是 AI 编码助手（Codex / Claude / Copilot 等），请直接阅读 [README.agent.md](README.agent.md) —— 专为 Agent 编写的安装指南。
 
-在 Codex / ChatGPT **桌面版**中提供两层 Token 分析：悬浮卡用于快速查看本轮趋势、对话累计、上下文占用和缓存命中；大型界面用于查看今日累计、任务占比、异常原因与行动建议、模型理论消费对比，以及可交给任意 Agent 的分析包。数据约 **1 秒**实时刷新。
+在 Codex / ChatGPT **桌面版**旁提供两层 Token 分析：独立 Windows 悬浮卡用于快速查看最近活动任务、本轮趋势、今日累计和缓存命中；浏览器大型界面用于查看今日累计、任务占比、Token 构成、模型理论消费对比，以及一键复制「提示词 + 数据包」。数据约 **1 秒**实时刷新。
 
 ![面板展开](panel-preview.png)
 
@@ -14,74 +14,85 @@
 
 - **操作系统：仅 Windows**（开发与测试基于 Windows 10 22H2；macOS / Linux 未支持，开机自启守护为 Windows 专属）。
 - **客户端：Codex / ChatGPT 桌面版**（不支持 codex CLI）。
-- **必须安装 Codex++**（负责注入面板脚本并开放调试端口 9229）。
-- **Node.js ≥ 22**（使用 node-version），或**内置 Node 运行时**（exe-version，无需单独安装 Node.js）。
+- 无需预先安装 Node.js：一键安装器会在需要时下载官方 Node.js 运行时到当前用户目录。
+- **不需要 Codex++**，不使用页面注入、侧边栏或调试端口。
 
-## ⚠️ 使用前提（请先按顺序确认）
+## 一键安装（推荐）
 
-1. **仅支持 Codex / ChatGPT 桌面版，不支持 codex CLI。**
-2. **必须安装 Codex++**（负责把面板脚本注入页面，并通过调试端口 9229 推送数据）。没装 Codex++ 的话，本工具不适用。
-3. **监控程序二选一：**
-   - 电脑上**已安装 Node.js（≥ 22）** → 使用 `node-version`（脚本方式，体积小）；
-   - 电脑上**没有 Node.js** → 使用 `exe-version`（内置 Node 运行时、免安装，体积约 55MB）。
+在 PowerShell 中粘贴下面这一行即可：
 
+```powershell
+$u='https://raw.githubusercontent.com/THaoKun2022/ccm-token-spend/main/Install-TokenTrace.ps1'; $p=Join-Path $env:TEMP 'Install-TokenTrace.ps1'; Invoke-WebRequest $u -OutFile $p; powershell -NoProfile -ExecutionPolicy Bypass -File $p
 ```
-判断流程：
-Codex 桌面版？ ──否──> 不支持（CLI 用户请勿继续）
-   │是
-已装 Codex++？ ──否──> 先安装 Codex++，否则不支持
-   │是
-已装 Node.js？ ──是──> 用 node-version
-   │否
-用 exe-version
+
+安装器会：
+
+- 从 GitHub 锁定一个提交版本并下载 Token Trace 源文件；
+- 仅在本机缺少 Node.js 22+ 时，从 `nodejs.org` 下载官方运行时；
+- 安装到 `%LOCALAPPDATA%\TokenTrace`；
+- 注册 WMI 事件守护。此后用户从桌面、开始菜单或任务栏正常打开 Codex，Token Trace 都会自动出现；全部 Codex 窗口关闭后会自动停止。
+
+该命令会先把公开安装脚本下载到临时目录，再以一次性执行策略运行；不使用 `irm | iex`。希望先审阅脚本时，可先在浏览器打开 [Install-TokenTrace.ps1](Install-TokenTrace.ps1) 再运行。
+
+卸载自动跟随功能：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\TokenTrace\uninstall-autostart.ps1"
 ```
+
+卸载会保留主题、模型价格和自定义悬浮封面；如需移除程序文件，可在卸载后删除 `%LOCALAPPDATA%\TokenTrace`。
 
 ## 文件说明
 
-- `codex-token-spend-panel.js` — 面板脚本（两个版本通用，复制到 Codex++ 用户脚本目录）
-- `node-version\token-stats.mjs` — Node 版监控程序
-- `exe-version\ccm-token-spend.exe` — 免安装 exe 版监控程序
-- `guardian.ps1` / `install-autostart.ps1` / `uninstall-autostart.ps1` — 开机自启守护脚本（Windows 专属）
+- `token-stats.mjs` — 本机统计/API/浏览器面板服务
+- `dashboard.html` — 浏览器大型统计界面
+- `floating-panel.ps1` — 独立 Windows 悬浮入口，可自由拖动并记住位置，默认使用黑猫 Token logo
+- `Install-TokenTrace.ps1` — 从 GitHub 一键下载、安装并启用 WMI 跟随的公开安装器
+- `launch-codex-token-trace.ps1` / `install-launcher-mode.ps1` — 旧的低耗启动器模式；新用户优先使用一键安装
+- `guardian.ps1` / `install-autostart.ps1` / `uninstall-autostart.ps1` — 可选 WMI 事件守护模式（Windows 专属；不轮询）
 
-## 安装（两个版本通用，只需做一次）
+## 运行
 
-1. 把 `codex-token-spend-panel.js` 复制到 Codex++ 的用户脚本目录：
+**源码开发 / 手动运行：**
 
-   ```powershell
-   Copy-Item .\codex-token-spend-panel.js "$env:APPDATA\Codex++\user_scripts\" -Force
-   ```
+```powershell
+node token-stats.mjs --server
+```
 
-2. **完全退出并重启 Codex 桌面版**，让脚本注入页面（右下角应出现面板）。
+浏览器大型界面：`http://127.0.0.1:8766`
 
-## 运行监控（每次想用时执行）
+手动调试悬浮窗可运行：
 
-- **Node 版：**
-  ```powershell
-  cd node-version
-  node token-stats.mjs --watch --cdp
-  ```
-- **exe 版：**
-  ```powershell
-  cd exe-version
-  ccm-token-spend.exe --watch --cdp
-  ```
-- 也可以直接**双击**对应文件夹里的 `start-watch.cmd`。
-
-保持这个窗口运行即可。
+```powershell
+powershell -ExecutionPolicy Bypass -File .\floating-panel.ps1
+```
 
 ## 面板说明
 
-- 悬浮卡保持简洁：本轮 Token、最近轮次趋势、对话累计、上下文占用、缓存命中和更新时间。
-- 点击 `↗` 或「查看今日分析」打开大型界面，使用路径为：**今日累计 → 找到高消耗任务 → 查看原因 → 比较模型 → 导出行动建议**。
-- 大型界面的任务排行按 Codex 对话归类；点击任务后，用透明阈值规则展示上下文膨胀、缓存下降、单轮峰值、输出偏高或请求密度异常，并匹配对应动作。
+- 悬浮入口是可自由拖动的圆形图片球；默认封面为 `assets/token_black_cat.png`，点击展开/收起，位置会记住。
+- 在浏览器大型界面点击「悬浮封面」可上传图片，工具会自动居中裁切为圆形 PNG，并保存到 `%LOCALAPPDATA%\ccm-token-spend\floating-cover.png`。
+- 悬浮卡保持简洁：最近活动任务、本轮 Token、今日累计、缓存命中、打开大型界面和复制数据包。
+- 大型界面支持深色 / 浅色主题切换，主题偏好保存在本机浏览器中。
+- 大型界面路径为：**今日累计 → 任务占比 → Token 构成 → 模型费用对比 → 复制提示词 + 数据包**。
+- 大型界面的任务排行按 Codex 对话归类；任务名称来自标题或首条用户消息摘要，方便外部 AI 分析。
 - 模型对比基于**今日总 Token 构成**套用价格。内置价格是可编辑演示值，不代表官方实时价格；修改后只保存在本机浏览器存储中。
-- 「Agent 分析包」可复制或下载 Markdown，包含汇总指标、规则结果、建议和价格，不包含本机文件路径及原始对话正文。
-- 标题栏可拖动，四个角均可拖拽调整大小；面板与小按钮的位置、大小分别记忆。
-- 面板右上角 `−` 可收起为小按钮，点小按钮恢复；明暗主题会优先跟随 Codex 页面。
+- 「提示词 + 数据包」包含今日全部任务汇总、任务占比、Token 构成和模型价格表；包含任务摘要，但不包含完整对话、文件路径、密钥或原始日志。
 
-## 开机自启（可选）：Codex 启动时自动运行监控
+## 旧版：低耗启动器模式
 
-如果不想每次手动启动监控，可以安装守护进程：登录 Windows 后自动常驻，检测到 Codex 运行时自动启动监控，Codex 退出后自动停止，监控进程崩溃也会自动重启。
+如果希望“打开 Codex 时自动启动，关闭 Codex 时一起关闭”，且不想登录 Windows 后常驻守护进程，使用启动器模式：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install-launcher-mode.ps1
+```
+
+它会在桌面创建 `Codex + Token Trace.lnk`。以后从这个快捷方式打开 Codex，即可同步启动本机服务和悬浮窗；关闭 Codex 后，启动器会停止 Token Trace。
+
+> 这个模式最省资源：不点快捷方式时，没有后台守护进程常驻。
+
+## 可选：登录后守护模式
+
+如果希望无论从哪里打开 Codex 都自动拉起 Token Trace，可以安装 WMI 事件守护进程：登录 Windows 后它只订阅 Codex / ChatGPT 的进程启动和退出事件；收到启动事件才启动本机服务和悬浮窗，收到退出事件后确认全部 Codex 进程已关闭才停止。**不再使用每 2 秒一次的轮询。**
 
 1. 在 PowerShell 中进入本工具目录，运行：
 
@@ -95,11 +106,11 @@ Codex 桌面版？ ──否──> 不支持（CLI 用户请勿继续）
    powershell -ExecutionPolicy Bypass -File .\uninstall-autostart.ps1
    ```
 
-> 安装方式：注册「计划任务」（登录触发）自动运行，为唯一自启方式；安装时会自动清理旧版本遗留的启动文件夹快捷方式。守护进程内置单实例锁，不会重复运行。
+> 守护模式会注册「计划任务」（登录触发）自动运行；守护进程内置单实例锁，不会重复运行。它是一个极轻量的 WMI 事件等待进程，而不是周期性检查器。
 >
-> 运行日志：`%LOCALAPPDATA%\ccm-token-spend\guardian.log`（记录检测 Codex / 启动停止监控 / 失败原因）；排查「等待数据」时先看它和 `watch.log`。
+> 运行日志：`%LOCALAPPDATA%\ccm-token-spend\guardian.log` 和 `server.log`。
 >
-> 提示：如果之前有手动打开的监控窗口，先关闭它再安装，避免双实例。
+> 卸载只会停止守护进程、服务与悬浮窗；本机主题、价格和自定义封面会保留。
 
 ## 数据说明
 
@@ -108,10 +119,9 @@ Codex 桌面版？ ──否──> 不支持（CLI 用户请勿继续）
 - 「上下文窗口（已用/总量）」= 已用为当前对话最新一次请求的上下文占用，总量为模型上下文窗口大小。
 - 「每轮」= 一次用户消息到下一次用户消息之间发生的所有请求。
 - 「今日任务」= 今日发生 Token 请求的 Codex 对话；今日总量按本机时区聚合最近会话日志。
-- 原因与建议来自可解释的本地规则，不读取或生成对话内容分析；高级判断可通过导出的 Agent 分析包完成。
 - 输入缓存拆分：`输入 X（缓存命中 Y，未命中 Z）`，其中未命中 = 输入 − 缓存命中；旧日志没有缓存字段时自动显示为 `输入 X + 输出 W`。
-- 新对话（尚无数据）显示 0，而不是「暂无数据」；切到空白新对话时不会显示上一个对话的数据。
-- Codex 刚启动、界面尚未加载完成时显示 0，加载完成后自动显示当前对话的数据（不回退显示上一个对话）。
+- 不进入 Codex 页面时，无法可靠判断“用户刚切换但尚未产生请求的旧任务”；悬浮卡使用“最近活动任务”措辞。
+- 工具不做内置异常诊断，分析由用户复制数据包后交给任意 AI 完成。
 
 ## 开发者：命令行直接查看（无需面板）
 
@@ -138,10 +148,9 @@ npm install          # 首次需要：安装 @yao-pkg/pkg
 
 - Windows 10 22H2（build 19045）
 - Codex 桌面版 26.727.6591.0
-- Codex++ 1.2.44
 - Node.js v24.14.1
 - 目前接入的是**第三方 API**，测试时固定单一模型；**未测试切换模型**（同一对话中更换模型）的效果。
-- 已实测：命令行统计输出、面板渲染（轮次全量、会话累计缓存拆分、上下文窗口已用/总量）、四角缩放、面板与小按钮位置记忆、顶部汇总区与底部「更新于」栏常驻（窄宽度自动增高且不超出窗口）、会话历史标题列随宽度拉伸、空白新对话显示 0、守护进程（Codex 启动自动拉起监控、退出自动停止、监控崩溃自动重启）。
+- 已实测：命令行统计输出、本机服务 `/api/state`、`/api/pack`、浏览器大型界面、悬浮窗脚本自检、守护脚本语法检查。
 - macOS / Linux 未测试。
 
 ## 📝 环境测试报告（欢迎参与）
@@ -151,7 +160,6 @@ npm install          # 首次需要：安装 @yao-pkg/pkg
 - **Release 版本号**：如 `v1.2-node`（Node 版）/ `v1.2-exe`（内置 Node 版）
 - **操作系统**：如 Windows 10 / Windows 11
 - **Codex 桌面版版本号**：如 `26.727.6591.0`
-- **Codex++ 版本号**：如 `1.2.44`
 - **是否成功运行**：成功 / 部分功能异常 / 失败
 
 ## 致谢

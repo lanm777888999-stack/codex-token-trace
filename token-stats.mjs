@@ -11,16 +11,32 @@
 //   node token-stats.mjs --detail           include per-request rows in the printed table
 //   node token-stats.mjs --watch [--cdp]    watch the active conversation (push to page with --cdp)
 //   node token-stats.mjs --cdp              one-shot push of a sanitized summary into the Codex page
-//   node token-stats.mjs --port <port>      CDP port override (default 9229)
+//   node token-stats.mjs --server           run the no-Codex++ local dashboard/API server
+//   node token-stats.mjs --port <port>      server port with --server (default 8766); CDP port with --cdp (default 9229)
 //
 // The tool only reads Codex's own session logs and never prints secrets.
 
 import fs from "node:fs";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const SESSIONS_DIR = path.join(process.env.CODEX_HOME || path.join(os.homedir(), ".codex"), "sessions");
 const ROLLOUT_RE = /^rollout-(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})-(.+)\.jsonl$/;
+const STATE_DIR = path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local"), "ccm-token-spend");
+const PRICE_FILE = path.join(STATE_DIR, "model-prices.json");
+const COVER_FILE = path.join(STATE_DIR, "floating-cover.png");
+const THEME_FILE = path.join(STATE_DIR, "ui-theme.json");
+const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
+const DASHBOARD_FILE = path.join(SCRIPT_DIR, "dashboard.html");
+const DEFAULT_PRICES = [
+  { id: "deepseek", name: "DeepSeek V4 Flash", region: "CN", fresh: 1.01, cached: 0.02, output: 2.02 },
+  { id: "qwen", name: "Qwen 3.7 Plus", region: "CN", fresh: 2, cached: 0.2, output: 8 },
+  { id: "glm", name: "GLM-5.2", region: "CN", fresh: 4, cached: 0.5, output: 16 },
+  { id: "kimi", name: "Kimi K2.5", region: "CN", fresh: 4, cached: 1, output: 16 },
+  { id: "gpt", name: "GPT-5.6 Sol", region: "Global", fresh: 36, cached: 3.6, output: 216 },
+];
 
 function findRolloutFiles() {
   const out = [];
@@ -531,6 +547,232 @@ function payloadFor(stats, daily = null) {
   };
 }
 
+function normalizePrices(value) {
+  const incoming = Array.isArray(value) ? value : [];
+  return DEFAULT_PRICES.map((base) => {
+    const match = incoming.find((item) => item && item.id === base.id) || {};
+    return {
+      ...base,
+      fresh: Math.max(0, Number.isFinite(Number(match.fresh)) ? Number(match.fresh) : base.fresh),
+      cached: Math.max(0, Number.isFinite(Number(match.cached)) ? Number(match.cached) : base.cached),
+      output: Math.max(0, Number.isFinite(Number(match.output)) ? Number(match.output) : base.output),
+    };
+  });
+}
+
+function loadPrices() {
+  try {
+    return normalizePrices(JSON.parse(fs.readFileSync(PRICE_FILE, "utf8")));
+  } catch {
+    return normalizePrices(DEFAULT_PRICES);
+  }
+}
+
+function savePrices(prices) {
+  const normalized = normalizePrices(prices);
+  fs.mkdirSync(path.dirname(PRICE_FILE), { recursive: true });
+  fs.writeFileSync(PRICE_FILE, JSON.stringify(normalized, null, 2), "utf8");
+  return normalized;
+}
+
+function normalizeTheme(value) {
+  return value === "light" ? "light" : "dark";
+}
+
+function loadTheme() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(THEME_FILE, "utf8"));
+    return normalizeTheme(parsed.theme);
+  } catch {
+    return "dark";
+  }
+}
+
+function saveTheme(theme) {
+  const normalized = normalizeTheme(theme);
+  fs.mkdirSync(path.dirname(THEME_FILE), { recursive: true });
+  fs.writeFileSync(THEME_FILE, JSON.stringify({ theme: normalized, updatedAt: new Date().toISOString() }, null, 2), "utf8");
+  return normalized;
+}
+
+function modelCost(price, source) {
+  const input = Math.max(0, Number(source?.input) || 0);
+  const cached = Math.min(input, Math.max(0, Number(source?.cached) || 0));
+  const output = Math.max(0, Number(source?.output) || 0);
+  const uncached = Math.max(0, input - cached);
+  return (uncached * price.fresh + cached * price.cached + output * price.output) / 1e6;
+}
+
+function newestStats() {
+  const file = resolveAnyFile();
+  if (!file) return emptyStats("", "");
+  const parsed = parseFileCached(file);
+  return parsed ? buildStats(parsed) : emptyStats(threadIdOf(file), file);
+}
+
+function publicDaily(daily) {
+  if (!daily) return null;
+  return {
+    ...daily,
+    tasks: (daily.tasks || []).map(({ insights, ...task }) => task),
+  };
+}
+
+function publicPayload() {
+  const stats = newestStats();
+  const daily = publicDaily(buildDailySummary(stats.threadId || null));
+  const prices = loadPrices();
+  return {
+    ...payloadFor(stats, daily),
+    mode: "local-server",
+    activeLabel: "最近活动任务",
+    theme: loadTheme(),
+    prices,
+    modelCosts: prices.map((price) => ({ ...price, cost: modelCost(price, daily) })).sort((a, b) => a.cost - b.cost),
+  };
+}
+
+function analysisPack(payload = publicPayload()) {
+  const daily = payload.daily || {};
+  const prices = payload.prices || [];
+  const tasks = Array.isArray(daily.tasks) ? daily.tasks : [];
+  const total = Number(daily.total) || 0;
+  const taskLines = tasks.map((task, index) => {
+    const share = total > 0 ? ((task.total / total) * 100).toFixed(1) : "0.0";
+    return `${index + 1}. ${task.label || `任务 ${String(task.threadId || "").slice(0, 8)}`} | Token ${task.total || 0} | 占比 ${share}% | 输入 ${task.input || 0} | 缓存 ${task.cached || 0} | 输出 ${task.output || 0} | 请求 ${task.requestCount || 0} | 轮次 ${task.turnCount || 0}`;
+  });
+  const priceLines = prices.map((price) => {
+    return `- ${price.name} (${price.region}): 新输入 $${price.fresh}/1M, 缓存 $${price.cached}/1M, 输出 $${price.output}/1M, 今日理论消费 $${modelCost(price, daily).toFixed(4)}`;
+  });
+  return `# Token Trace 数据分析包
+
+请你作为 AI 使用效率分析顾问，只根据下面的 Token 统计数据进行分析。数据来自本机统计，不包含文件路径、密钥或原始日志。
+
+## 分析目标
+
+1. 找出今日 Token 主要花在哪里。
+2. 判断哪些任务类型最值得优化。
+3. 根据输入、缓存、输出构成，给出减少 Token 消耗的可执行做法。
+4. 基于模型价格表做成本对比，但必须说明“同量套价不代表同等任务效果”。
+5. 给出接下来 7 天应该追踪的指标。
+
+## 今日总览
+
+- 日期：${daily.date || localDateKey(new Date())}
+- 今日累计 Token：${daily.total || 0}
+- 输入 Token：${daily.input || 0}
+- 缓存 Token：${daily.cached || 0}
+- 未缓存输入 Token：${daily.uncached || Math.max(0, (daily.input || 0) - (daily.cached || 0))}
+- 输出 Token：${daily.output || 0}
+- 任务数：${daily.taskCount || tasks.length}
+- 请求数：${daily.requestCount || 0}
+- 较昨日变化：${daily.vsYesterdayPct == null ? "无基准" : `${daily.vsYesterdayPct.toFixed(1)}%`}
+- 较近 7 日均值变化：${daily.vsSevenDayPct == null ? "无基准" : `${daily.vsSevenDayPct.toFixed(1)}%`}
+
+## 各任务 Token 占比
+
+${taskLines.length ? taskLines.join("\n") : "- 暂无今日任务数据"}
+
+## 模型价格表与今日理论消费
+
+${priceLines.length ? priceLines.join("\n") : "- 暂无模型价格数据"}
+
+## 输出要求
+
+请按“主要消耗来源 -> 可优化任务 -> 具体动作 -> 模型成本对比 -> 7 天追踪指标”的结构输出。不要编造未提供的对话内容。`;
+}
+
+function sendJson(res, status, data) {
+  const body = JSON.stringify(data);
+  res.writeHead(status, {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "no-store",
+    "access-control-allow-origin": "*",
+  });
+  res.end(body);
+}
+
+function readRequestBody(req) {
+  return new Promise((resolve, reject) => {
+    let raw = "";
+    req.setEncoding("utf8");
+    req.on("data", (chunk) => {
+      raw += chunk;
+      if (raw.length > 5 * 1024 * 1024) {
+        reject(new Error("request body too large"));
+        req.destroy();
+      }
+    });
+    req.on("end", () => resolve(raw));
+    req.on("error", reject);
+  });
+}
+
+function startServer({ host = "127.0.0.1", port = 8766 } = {}) {
+  const server = http.createServer(async (req, res) => {
+    try {
+      const url = new URL(req.url || "/", `http://${host}:${port}`);
+      if (req.method === "OPTIONS") {
+        res.writeHead(204, {
+          "access-control-allow-origin": "*",
+          "access-control-allow-methods": "GET,POST,OPTIONS",
+          "access-control-allow-headers": "content-type",
+        });
+        res.end();
+        return;
+      }
+      if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/dashboard.html")) {
+        const html = fs.readFileSync(DASHBOARD_FILE, "utf8");
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+        res.end(html);
+        return;
+      }
+      if (req.method === "GET" && url.pathname === "/api/state") return sendJson(res, 200, publicPayload());
+      if (req.method === "GET" && url.pathname === "/api/pack") return sendJson(res, 200, { text: analysisPack(publicPayload()) });
+      if (req.method === "GET" && url.pathname === "/api/prices") return sendJson(res, 200, { prices: loadPrices() });
+      if (req.method === "POST" && url.pathname === "/api/prices") {
+        const raw = await readRequestBody(req);
+        const parsed = raw ? JSON.parse(raw) : {};
+        return sendJson(res, 200, { prices: savePrices(parsed.prices || parsed) });
+      }
+      if (req.method === "POST" && url.pathname === "/api/prices/reset") return sendJson(res, 200, { prices: savePrices(DEFAULT_PRICES) });
+      if (req.method === "GET" && url.pathname === "/api/theme") return sendJson(res, 200, { theme: loadTheme() });
+      if (req.method === "POST" && url.pathname === "/api/theme") {
+        const raw = await readRequestBody(req);
+        const parsed = raw ? JSON.parse(raw) : {};
+        return sendJson(res, 200, { theme: saveTheme(parsed.theme) });
+      }
+      if (req.method === "POST" && url.pathname === "/api/cover") {
+        const raw = await readRequestBody(req);
+        const parsed = raw ? JSON.parse(raw) : {};
+        const match = String(parsed.dataUrl || "").match(/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/);
+        if (!match) return sendJson(res, 400, { error: "expected png dataUrl" });
+        const buffer = Buffer.from(match[1], "base64");
+        if (!buffer.length || buffer.length > 2 * 1024 * 1024) return sendJson(res, 400, { error: "cover image is empty or too large" });
+        fs.mkdirSync(STATE_DIR, { recursive: true });
+        fs.writeFileSync(COVER_FILE, buffer);
+        return sendJson(res, 200, { ok: true, savedTo: COVER_FILE });
+      }
+      if (req.method === "GET" && url.pathname === "/api/health") return sendJson(res, 200, { ok: true, mode: "local-server", updatedAt: new Date().toISOString() });
+      sendJson(res, 404, { error: "not found" });
+    } catch (e) {
+      sendJson(res, 500, { error: e && e.message ? e.message : String(e) });
+    }
+  });
+  server.on("error", (e) => {
+    const message = e && e.code === "EADDRINUSE"
+      ? `端口 ${port} 已被占用，请用 --port 指定其他端口`
+      : (e && e.message ? e.message : String(e));
+    console.error("Token Trace 本机服务启动失败: " + message);
+    if (!process.env.CCM_TOKENS_AS_MODULE) process.exit(1);
+  });
+  server.listen(port, host, () => {
+    console.log(`Token Trace 本机服务已启动: http://${host}:${port}`);
+    console.log("无需 Codex++；数据来自 Codex 本地会话日志。");
+  });
+  return server;
+}
+
 async function cdpEval(port, expression) {
   const targets = await fetch(`http://127.0.0.1:${port}/json`).then((r) => r.json());
   const page = targets.find((t) => t.url === "app://-/index.html" && !t.url.includes("avatar-overlay"));
@@ -854,7 +1096,7 @@ async function hasConversationContent(port) {
 }
 
 function parseArgs(argv) {
-  const args = { thread: null, all: false, detail: false, watch: false, cdp: false, port: 9229 };
+  const args = { thread: null, all: false, detail: false, watch: false, cdp: false, server: false, host: "127.0.0.1", port: 9229, portSet: false };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === "--thread") args.thread = argv[i + 1];
@@ -862,13 +1104,24 @@ function parseArgs(argv) {
     else if (a === "--detail") args.detail = true;
     else if (a === "--watch") args.watch = true;
     else if (a === "--cdp") args.cdp = true;
-    else if (a === "--port") args.port = Number(argv[i + 1]);
+    else if (a === "--server") args.server = true;
+    else if (a === "--host") args.host = argv[i + 1] || args.host;
+    else if (a === "--port") {
+      args.port = Number(argv[i + 1]);
+      args.portSet = true;
+    }
   }
+  if (args.server && !args.portSet) args.port = 8766;
   return args;
 }
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+
+  if (args.server) {
+    startServer({ host: args.host, port: args.port });
+    return;
+  }
 
   if (args.all) {
     const files = findRolloutFiles().sort((a, b) => b.localeCompare(a));
@@ -1033,4 +1286,12 @@ export {
   buildRuleInsights,
   buildDailySummary,
   payloadFor,
+  DEFAULT_PRICES,
+  loadPrices,
+  savePrices,
+  modelCost,
+  newestStats,
+  publicPayload,
+  analysisPack,
+  startServer,
 };

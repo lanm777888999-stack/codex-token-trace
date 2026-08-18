@@ -1,156 +1,121 @@
-# ccm-token-spend - Token Usage Panel for Codex Desktop
+# ccm-token-spend - Token Trace for Codex Desktop
 
 [简体中文](README.md) | [English](README.en.md)
 
-> 🤖 If you are an AI coding assistant (Codex / Claude / Copilot / etc.), read [README.agent.md](README.agent.md) - an installation guide written specifically for agents.
+Token Trace is a Windows companion tool for the Codex / ChatGPT desktop app. It reads local Codex rollout logs, shows a small floating window next to Codex, and serves a browser dashboard at `http://127.0.0.1:8766`.
 
-Shows per-thread / per-turn token usage in the bottom-right corner of the Codex / ChatGPT **desktop** app: current-turn usage, session totals, request count, context window (used/total), cached vs. uncached input split, and a recent-turns list. Data refreshes roughly every **1 second**.
+Codex++ is not required. The default mode does not inject scripts into Codex, does not add a sidebar, and does not use debug port `9229`.
 
-![Panel expanded](panel-preview.png)
+## Requirements
 
-![Collapsed mini button](mini-preview.png)
+- Windows.
+- Codex / ChatGPT desktop app.
+- Node.js >= 22, or use the one-command installer which downloads an official runtime when needed.
 
-## Supported Environments
+## One-command install
 
-- **OS: Windows only** (developed and tested on Windows 10 22H2; macOS / Linux are not supported, and the auto-start daemon is Windows-specific).
-- **Client: Codex / ChatGPT desktop app** (codex CLI is not supported).
-- **Codex++ is required** (it injects the panel script into the page and opens debug port 9229).
-- **Node.js >= 22** (node-version), or **bundled Node runtime** (exe-version, no separate Node.js installation needed).
+Run this in PowerShell:
 
-## ⚠️ Prerequisites (Check in Order)
-
-1. **Codex / ChatGPT desktop app only; codex CLI is not supported.**
-2. **Codex++ must be installed** (it injects the panel script into the page and pushes data through debug port 9229). Without Codex++, this tool will not work.
-3. **Choose one monitor program:**
-   - **Node.js (>= 22) installed** -> use `node-version` (script-based, small footprint);
-   - **No Node.js** -> use `exe-version` (bundled Node runtime, portable, about 55MB).
-
+```powershell
+$u='https://raw.githubusercontent.com/THaoKun2022/ccm-token-spend/main/Install-TokenTrace.ps1'; $p=Join-Path $env:TEMP 'Install-TokenTrace.ps1'; Invoke-WebRequest $u -OutFile $p; powershell -NoProfile -ExecutionPolicy Bypass -File $p
 ```
-Decision flow:
-Codex desktop? ----no----> Not supported (CLI users stop here)
-   |yes
-Codex++ installed? ----no----> Install Codex++ first, otherwise not supported
-   |yes
-Node.js installed? ----yes----> Use node-version
-   |no
-Use exe-version
+
+It pins one GitHub commit, downloads the required source files, obtains the official Node.js runtime only when needed, and enables WMI follow mode. Open Codex normally from any entry afterwards.
+
+To inspect the installer before execution, open [Install-TokenTrace.ps1](Install-TokenTrace.ps1). To disable automatic following, run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\TokenTrace\uninstall-autostart.ps1"
+```
+
+## Run
+
+Manual start:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-token-trace.ps1
+```
+
+Server only:
+
+```powershell
+node token-stats.mjs --server
+```
+
+Dashboard:
+
+```text
+http://127.0.0.1:8766
 ```
 
 ## Files
 
-- `codex-token-spend-panel.js` - panel script (shared by both versions; copy to the Codex++ user scripts folder)
-- `node-version\token-stats.mjs` - Node monitor
-- `exe-version\ccm-token-spend.exe` - standalone exe monitor
-- `guardian.ps1` / `install-autostart.ps1` / `uninstall-autostart.ps1` - auto-start daemon scripts (Windows only)
+- `token-stats.mjs` - local stats/API/dashboard server.
+- `dashboard.html` - browser dashboard.
+- `floating-panel.ps1` - independent Windows floating panel, freely draggable, remembers its position, and uses the black-cat Token logo by default.
+- `start-token-trace.ps1` - starts the server and floating panel manually.
+- `Install-TokenTrace.ps1` - public one-command installer.
+- `launch-codex-token-trace.ps1` / `install-launcher-mode.ps1` - low-resource launcher mode: starts Token Trace with Codex and stops it when Codex exits.
+- `guardian.ps1` - optional WMI event guardian that reacts to Codex process start/stop events without polling.
+- `install-autostart.ps1` / `uninstall-autostart.ps1` - install/uninstall the scheduled task.
+- `codex-token-spend-panel.js` - legacy Codex++ injected panel, kept for compatibility only.
 
-## Installation (Shared by Both Versions, Do It Once)
+## Dashboard
 
-1. Copy `codex-token-spend-panel.js` to the Codex++ user scripts folder:
+The browser dashboard focuses on:
 
-   ```powershell
-   Copy-Item .\codex-token-spend-panel.js "$env:APPDATA\Codex++\user_scripts\" -Force
-   ```
+- today's total token usage;
+- per-task token share;
+- input / cached input / output composition;
+- editable model price comparison;
+- one-click prompt + data pack for analysis in another AI.
+- dark / light theme switching.
 
-2. **Fully quit and restart Codex desktop** so the script gets injected (the panel should appear in the bottom-right corner).
+The floating ball uses `assets/token_black_cat.png` by default. In the browser dashboard, use "悬浮封面" to upload an image; it is center-cropped into a circular PNG and saved locally at `%LOCALAPPDATA%\ccm-token-spend\floating-cover.png`.
 
-## Running the Monitor (Every Time You Want to Use It)
+The data pack includes task summaries and numeric metrics. It does not include full conversations, file paths, secrets, or raw logs.
 
-- **Node version:**
-  ```powershell
-  cd node-version
-  node token-stats.mjs --watch --cdp
-  ```
-- **exe version:**
-  ```powershell
-  cd exe-version
-  ccm-token-spend.exe --watch --cdp
-  ```
-- Or simply **double-click** `start-watch.cmd` in the corresponding folder.
+## Low-resource launcher mode
 
-Keep this window running.
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install-launcher-mode.ps1
+```
 
-## Panel Features
+This creates a desktop shortcut named `Codex + Token Trace.lnk`. Use that shortcut to launch Codex with Token Trace. When Codex exits, Token Trace exits too. No logon guardian stays running in the background.
 
-- The top summary area (title, current turn, session total, request count, context window) and the bottom "Updated at" bar are **always visible**; only the middle "turn details" area scrolls.
-- Panel height auto-fits content: it grows taller when the summary wraps, and it never exceeds the Codex window; after drag-resizing, it snaps back to the content-required height on release.
-- The title bar is draggable, and all four corners support resizing; the panel and the mini button remember their positions and sizes separately.
-- The `x` button in the top-right corner collapses the panel to a mini button; click the mini button to restore it.
-- The conversation history title column stretches automatically with the panel width.
+## Optional guardian mode
 
-## Auto-Start (Optional): Run the Monitor When Codex Starts
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install-autostart.ps1
+```
 
-If you do not want to start the monitor manually every time, install the daemon: it stays resident after Windows login, starts the monitor when Codex is running, stops it when Codex exits, and automatically restarts it if the monitor crashes.
+After installation, the guardian waits for filtered Windows WMI process events (no two-second polling). When Codex starts, it launches the local server and floating panel. When a Codex process exits, it confirms all Codex processes are closed before stopping them.
 
-1. In PowerShell, from the directory of this tool, run:
+Uninstall:
 
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File .\install-autostart.ps1
-   ```
+```powershell
+powershell -ExecutionPolicy Bypass -File .\uninstall-autostart.ps1
+```
 
-2. It takes effect immediately (no need to restart Codex). To uninstall, run:
+Logs:
 
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File .\uninstall-autostart.ps1
-   ```
+- `%LOCALAPPDATA%\ccm-token-spend\guardian.log`
+- `%LOCALAPPDATA%\ccm-token-spend\server.log`
 
-> Install method: registers a Scheduled Task (logon trigger) as the only auto-start mechanism; legacy Startup-folder shortcuts are cleaned up automatically during install. The daemon has a built-in single-instance lock.
->
-> Runtime log: `%LOCALAPPDATA%\ccm-token-spend\guardian.log` (records Codex detection / monitor start-stop / failure reasons). When troubleshooting "Waiting for data", check it and `watch.log` first.
->
-> Tip: close any manually opened monitor window before installing to avoid duplicate instances.
+Uninstalling preserves local theme, price and custom-cover settings.
 
 ## Data Notes
 
-- Only reads Codex local session logs (`%USERPROFILE%\.codex\sessions\...\rollout-*.jsonl`); **no API keys involved** - the panel only shows numeric summaries.
-- "Session total" = sum of billed tokens across all requests in the thread (including context re-sent in every turn).
-- "Context window (used/total)" = used is the context usage of the latest request in the current thread; total is the model context window size.
-- "Per turn" = all requests between one user message and the next.
-- Input cache split: `Input X (cached Y, uncached Z)`, where uncached = input - cached; old logs without cache fields automatically show `Input X + Output W`.
-- New threads (no data yet) show 0 instead of "no data"; switching to a blank new thread does not show the data of the previous thread.
-- During Codex startup before the UI finishes loading, it shows 0; after loading completes it automatically shows the data of the current thread (never falls back to the previous thread).
+- Only local Codex session logs are read: `%USERPROFILE%\.codex\sessions\...\rollout-*.jsonl`.
+- The tool cannot reliably know which old task is selected in Codex if that task has not produced new token requests. The UI therefore uses "recent active task" wording.
+- Model prices are editable demo values saved locally.
 
-## For Developers: CLI Stats (No Panel Needed)
+## Developer Commands
 
 ```powershell
 node token-stats.mjs                  # most recent thread
 node token-stats.mjs --thread <id>    # specific thread
 node token-stats.mjs --detail         # include per-request details
 node token-stats.mjs --all            # cumulative usage across all threads
+node token-stats.mjs --server         # local dashboard/API server
 ```
-
-## For Developers: Rebuilding the exe (Optional)
-
-```powershell
-cd build
-npm install          # first time only: installs @yao-pkg/pkg
-.\node_modules\.bin\pkg ..\token-stats.mjs --target node22-win-x64 --output ..\release\exe-version\ccm-token-spend.exe
-```
-
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for version history.
-
-## Test Environment
-
-- Windows 10 22H2 (build 19045)
-- Codex desktop 26.727.6591.0
-- Codex++ 1.2.44
-- Node.js v24.14.1
-- Currently uses a **third-party API** and was tested with a **single fixed model**; **switching models** (mid-thread) has not been tested.
-- Verified: CLI stat output, panel rendering (full turn list, session-total cache split, context window used/total), four-corner resizing, panel/mini-button position memory, always-visible top summary and bottom "Updated at" bar (auto-height at narrow widths without exceeding the window), conversation history title column stretching with width, blank new thread showing 0, and the daemon (starts the monitor when Codex starts, stops it on exit, restarts it on crash).
-- macOS / Linux not tested.
-
-## 📝 Environment Test Reports (Contributions Welcome)
-
-After testing, please share your environment to help us gather more compatibility data. Create a new discussion in the **General** category on [GitHub Discussions](https://github.com/THaoKun2022/ccm-token-spend/discussions) and fill in the template (the "测试报告" label is applied automatically):
-
-- **Release version**: e.g. `v1.2-node` (Node) / `v1.2-exe` (bundled Node)
-- **OS**: e.g. Windows 10 / Windows 11
-- **Codex desktop version**: e.g. `26.727.6591.0`
-- **Codex++ version**: e.g. `1.2.44`
-- **Ran successfully?**: success / partial issues / failed
-
-## Acknowledgements
-
-The built-in "current thread ID" detection logic references the open-source project [codex-context-used-meter](https://github.com/Minghou-Lei/codex-context-used-meter) (MIT License). It has been fully re-implemented in-house; no external script is required and no extra installation is needed.
-
