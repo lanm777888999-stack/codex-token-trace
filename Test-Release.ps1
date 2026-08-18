@@ -5,7 +5,7 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $required = @(
   "Install-TokenTrace.ps1", "token-stats.mjs", "dashboard.html", "floating-panel.ps1",
   "guardian.ps1", "install-autostart.ps1", "uninstall-autostart.ps1", "start-token-trace.ps1",
-  "assets\token_black_cat.png", "LICENSE", "SECURITY.md", "THIRD_PARTY_NOTICES.md"
+  "assets\token_black_cat.png", "docs\images\dashboard-overview-demo.png", "LICENSE", "SECURITY.md", "THIRD_PARTY_NOTICES.md"
 )
 
 foreach ($relative in $required) {

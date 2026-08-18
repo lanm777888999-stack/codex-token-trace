@@ -1,8 +1,26 @@
-# ccm-token-spend - Token Trace for Codex Desktop
+# Token Trace for Codex Desktop
 
 [简体中文](README.md) | [English](README.en.md)
 
-Token Trace is a Windows companion tool for the Codex / ChatGPT desktop app. It reads local Codex rollout logs, shows a small floating window next to Codex, and serves a browser dashboard at `http://127.0.0.1:8766`.
+Token Trace is a Windows companion for Codex / ChatGPT Desktop. It shows a draggable floating entry and a local browser dashboard for today's Token usage, per-task share, model-cost comparison, and a copyable AI analysis pack.
+
+![Token Trace dashboard with public demo data](docs/images/dashboard-overview-demo.png)
+
+> This is the current product UI. The screenshot uses built-in fictional demo data, never a user's session data.
+
+## What it does
+
+- Summarizes today's total Token use, requests, cache-hit rate, and input/cache/output composition.
+- Ranks Codex conversations by Token share with compact task titles.
+- Compares theoretical cost for the same daily Token composition across editable model price entries.
+- Provides a draggable floating ball/card, synchronized dark/light themes, and a custom cover image.
+- Copies a prompt plus sanitized statistics for analysis in any AI assistant.
+
+Run the safe demo dashboard without reading local sessions:
+
+```powershell
+node token-stats.mjs --server --demo --port 8767
+```
 
 Codex++ is not required. The default mode does not inject scripts into Codex, does not add a sidebar, and does not use debug port `9229`.
 

@@ -5,3 +5,4 @@ runtime/
 install-info.json
 dist/
 *.log
+docs/images/dashboard-prices-demo.png

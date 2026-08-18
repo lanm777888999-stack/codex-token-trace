@@ -632,6 +632,54 @@ function publicPayload() {
   };
 }
 
+function demoPayload() {
+  const timeline = Array.from({ length: 24 }, (_, hour) => {
+    const active = hour >= 9 && hour <= 18;
+    const input = active ? (hour === 10 ? 182000 : hour === 14 ? 246000 : 58000) : 0;
+    const cached = active ? Math.round(input * 0.91) : 0;
+    const output = active ? Math.round(input * 0.08) : 0;
+    return { hour, input, cached, output, total: input + output };
+  });
+  const tasks = [
+    { threadId: "demo-design", label: "设计 Token 消耗看板", total: 1840000, input: 1710000, cached: 1560000, output: 130000, requestCount: 86, turnCount: 14 },
+    { threadId: "demo-refactor", label: "重构本地统计流程", total: 1230000, input: 1130000, cached: 1020000, output: 100000, requestCount: 61, turnCount: 10 },
+    { threadId: "demo-review", label: "整理发布说明与测试", total: 760000, input: 702000, cached: 640000, output: 58000, requestCount: 38, turnCount: 7 },
+  ];
+  const daily = {
+    date: "2026-08-18",
+    total: tasks.reduce((sum, task) => sum + task.total, 0),
+    input: tasks.reduce((sum, task) => sum + task.input, 0),
+    cached: tasks.reduce((sum, task) => sum + task.cached, 0),
+    output: tasks.reduce((sum, task) => sum + task.output, 0),
+    uncached: tasks.reduce((sum, task) => sum + task.input - task.cached, 0),
+    taskCount: tasks.length,
+    requestCount: tasks.reduce((sum, task) => sum + task.requestCount, 0),
+    vsYesterdayPct: -8.4,
+    vsSevenDayPct: 11.7,
+    tasks,
+    timeline,
+  };
+  const prices = normalizePrices(DEFAULT_PRICES);
+  return {
+    ...payloadFor({
+      threadId: tasks[0].threadId,
+      modelContextWindow: 128000,
+      requestCount: tasks[0].requestCount,
+      sessionTotal: tasks[0].total,
+      sessionInput: tasks[0].input,
+      sessionCached: tasks[0].cached,
+      sessionOutput: tasks[0].output,
+      contextUsed: 36800,
+      turns: [],
+    }, daily),
+    mode: "demo",
+    activeLabel: "演示任务",
+    theme: "dark",
+    prices,
+    modelCosts: prices.map((price) => ({ ...price, cost: modelCost(price, daily) })).sort((a, b) => a.cost - b.cost),
+  };
+}
+
 function analysisPack(payload = publicPayload()) {
   const daily = payload.daily || {};
   const prices = payload.prices || [];
@@ -708,7 +756,8 @@ function readRequestBody(req) {
   });
 }
 
-function startServer({ host = "127.0.0.1", port = 8766 } = {}) {
+function startServer({ host = "127.0.0.1", port = 8766, demo = false } = {}) {
+  const getPayload = () => (demo ? demoPayload() : publicPayload());
   const server = http.createServer(async (req, res) => {
     try {
       const url = new URL(req.url || "/", `http://${host}:${port}`);
@@ -727,8 +776,8 @@ function startServer({ host = "127.0.0.1", port = 8766 } = {}) {
         res.end(html);
         return;
       }
-      if (req.method === "GET" && url.pathname === "/api/state") return sendJson(res, 200, publicPayload());
-      if (req.method === "GET" && url.pathname === "/api/pack") return sendJson(res, 200, { text: analysisPack(publicPayload()) });
+      if (req.method === "GET" && url.pathname === "/api/state") return sendJson(res, 200, getPayload());
+      if (req.method === "GET" && url.pathname === "/api/pack") return sendJson(res, 200, { text: analysisPack(getPayload()) });
       if (req.method === "GET" && url.pathname === "/api/prices") return sendJson(res, 200, { prices: loadPrices() });
       if (req.method === "POST" && url.pathname === "/api/prices") {
         const raw = await readRequestBody(req);
@@ -1096,7 +1145,7 @@ async function hasConversationContent(port) {
 }
 
 function parseArgs(argv) {
-  const args = { thread: null, all: false, detail: false, watch: false, cdp: false, server: false, host: "127.0.0.1", port: 9229, portSet: false };
+  const args = { thread: null, all: false, detail: false, watch: false, cdp: false, server: false, demo: false, host: "127.0.0.1", port: 9229, portSet: false };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === "--thread") args.thread = argv[i + 1];
@@ -1105,6 +1154,7 @@ function parseArgs(argv) {
     else if (a === "--watch") args.watch = true;
     else if (a === "--cdp") args.cdp = true;
     else if (a === "--server") args.server = true;
+    else if (a === "--demo") args.demo = true;
     else if (a === "--host") args.host = argv[i + 1] || args.host;
     else if (a === "--port") {
       args.port = Number(argv[i + 1]);
@@ -1119,7 +1169,7 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
 
   if (args.server) {
-    startServer({ host: args.host, port: args.port });
+    startServer({ host: args.host, port: args.port, demo: args.demo });
     return;
   }
 
