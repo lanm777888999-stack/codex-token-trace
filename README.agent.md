@@ -22,7 +22,7 @@ Codex++ 不是前提。不要要求用户安装 Codex++。
 ## 1.1 面向普通用户的一键安装
 
 ```powershell
-$u='https://raw.githubusercontent.com/THaoKun2022/ccm-token-spend/main/Install-TokenTrace.ps1'; $p=Join-Path $env:TEMP 'Install-TokenTrace.ps1'; Invoke-WebRequest $u -OutFile $p; powershell -NoProfile -ExecutionPolicy Bypass -File $p
+$u='https://raw.githubusercontent.com/lanm777888999-stack/codex-token-trace/main/Install-TokenTrace.ps1'; $p=Join-Path $env:TEMP 'Install-TokenTrace.ps1'; Invoke-WebRequest $u -OutFile $p; powershell -NoProfile -ExecutionPolicy Bypass -File $p
 ```
 
 安装器固定一次 GitHub 提交后下载所需文件；没有 Node.js 22+ 时才下载官方 Node 运行时。不要改为要求用户下载 ZIP 或安装 Codex++。
