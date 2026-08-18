@@ -13,10 +13,10 @@
 - `dashboard.html`：大型统计界面，展示今日累计、任务占比、Token 构成、模型消费对比和数据包复制。
 - `floating-panel.ps1`：Windows 无边框悬浮入口，可自由拖动并记住位置，点击展开/收起；默认使用 `assets/token_black_cat.png`，并支持用户上传圆形自定义封面。
 - `start-token-trace.ps1`：手动启动本机服务和悬浮入口。
-- `launch-codex-token-trace.ps1` / `install-launcher-mode.ps1`：低耗启动器模式，用户从桌面快捷方式打开 Codex 时同步启动 Token Trace，Codex 退出后同步停止。
-- `guardian.ps1`：可选 WMI 事件守护进程；订阅 Codex / ChatGPT 进程启停事件，不使用定时轮询。
+- `guardian.ps1`：WMI 事件守护进程；订阅 Codex / ChatGPT 进程启停事件，不使用定时轮询。
 - `install-autostart.ps1` / `uninstall-autostart.ps1`：守护模式安装/卸载。
-- `codex-token-spend-panel.js`：旧 Codex++ 注入面板，保留兼容，不作为新版默认路径。
+- `Install-TokenTrace.ps1`：普通用户单命令安装器，jsDelivr 主源 + GitHub Raw 回退，不调用 GitHub API。
+- `Build-Portable.ps1`：维护者生成便携 ZIP 与 SHA-256 文件。
 
 ## 工作原理
 
@@ -43,7 +43,6 @@
 ## 运行 / 测试
 
 - 手动启动：`powershell -ExecutionPolicy Bypass -File .\start-token-trace.ps1`
-- 低耗启动器：`powershell -ExecutionPolicy Bypass -File .\install-launcher-mode.ps1`
 - 无论从哪里打开 Codex 都自动跟随：`powershell -ExecutionPolicy Bypass -File .\install-autostart.ps1`（WMI 事件监听，无 2 秒轮询）
 - 仅启动服务：`node token-stats.mjs --server`
 - 浏览器界面：`http://127.0.0.1:8766`

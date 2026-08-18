@@ -30,22 +30,32 @@
 - 无需预先安装 Node.js：一键安装器会在需要时下载官方 Node.js 运行时到当前用户目录。
 - **不需要 Codex++**，不使用页面注入、侧边栏或调试端口。
 
-## 一键安装（推荐）
+## 安装方式一：命令行一键安装（推荐）
 
 在 PowerShell 中粘贴下面这一行即可：
 
 ```powershell
-$u='https://raw.githubusercontent.com/lanm777888999-stack/codex-token-trace/main/Install-TokenTrace.ps1'; $p=Join-Path $env:TEMP 'Install-TokenTrace.ps1'; Invoke-WebRequest $u -OutFile $p; powershell -NoProfile -ExecutionPolicy Bypass -File $p
+$v='v1.0.0'; $p=Join-Path $env:TEMP 'Install-TokenTrace.ps1'; try { Invoke-WebRequest "https://cdn.jsdelivr.net/gh/lanm777888999-stack/codex-token-trace@$v/Install-TokenTrace.ps1" -OutFile $p -ErrorAction Stop } catch { Invoke-WebRequest "https://raw.githubusercontent.com/lanm777888999-stack/codex-token-trace/$v/Install-TokenTrace.ps1" -OutFile $p -ErrorAction Stop }; powershell -NoProfile -ExecutionPolicy Bypass -File $p
 ```
 
 安装器会：
 
-- 从 GitHub 锁定一个提交版本并下载 Token Trace 源文件；
+- 使用明确发布标签 `v1.0.0`，逐个下载 Token Trace 源文件与资源；
+- 优先通过 jsDelivr CDN 下载，CDN 不可用时自动回退 GitHub Raw；
+- **不调用 GitHub API**，不需要 GitHub 登录、Access Token 或 `gh`，因此不会受 GitHub API 匿名限流影响；
 - 仅在本机缺少 Node.js 22+ 时，从 `nodejs.org` 下载官方运行时；
 - 安装到 `%LOCALAPPDATA%\TokenTrace`；
 - 注册 WMI 事件守护。此后用户从桌面、开始菜单或任务栏正常打开 Codex，Token Trace 都会自动出现；全部 Codex 窗口关闭后会自动停止。
 
 该命令会先把公开安装脚本下载到临时目录，再以一次性执行策略运行；不使用 `irm | iex`。希望先审阅脚本时，可先在浏览器打开 [Install-TokenTrace.ps1](Install-TokenTrace.ps1) 再运行。
+
+## 安装方式二：便携压缩包
+
+1. 下载 [TokenTrace-v1.0.0-portable.zip](https://github.com/lanm777888999-stack/codex-token-trace/releases/download/v1.0.0/TokenTrace-v1.0.0-portable.zip)。
+2. 解压到任意本地文件夹（不要直接在压缩包预览器中运行）。
+3. 双击 `Install.cmd`；以后正常打开 Codex / ChatGPT 桌面版即可。
+
+便携包已经带有 Node.js 运行时，不要求安装 Node.js、GitHub 登录或管理员权限。需要立即打开悬浮窗时双击 `Start.cmd`；要取消自动跟随时双击 `Uninstall.cmd`。便携包的 SHA-256 校验文件会随 Release 一起提供。
 
 卸载自动跟随功能：
 
@@ -61,7 +71,7 @@ powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\TokenTrace\uninstall
 - `dashboard.html` — 浏览器大型统计界面
 - `floating-panel.ps1` — 独立 Windows 悬浮入口，可自由拖动并记住位置，默认使用黑猫 Token logo
 - `Install-TokenTrace.ps1` — 从 GitHub 一键下载、安装并启用 WMI 跟随的公开安装器
-- `launch-codex-token-trace.ps1` / `install-launcher-mode.ps1` — 旧的低耗启动器模式；新用户优先使用一键安装
+- `Build-Portable.ps1` — 维护者构建带 Node.js 运行时的便携 ZIP 与 SHA-256 文件
 - `guardian.ps1` / `install-autostart.ps1` / `uninstall-autostart.ps1` — 可选 WMI 事件守护模式（Windows 专属；不轮询）
 
 ## 运行
@@ -100,18 +110,6 @@ node token-stats.mjs --server --demo --port 8767
 ```
 
 然后打开 `http://127.0.0.1:8767`。演示模式只使用内置的虚构任务与固定 Token 数字。
-
-## 旧版：低耗启动器模式
-
-如果希望“打开 Codex 时自动启动，关闭 Codex 时一起关闭”，且不想登录 Windows 后常驻守护进程，使用启动器模式：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\install-launcher-mode.ps1
-```
-
-它会在桌面创建 `Codex + Token Trace.lnk`。以后从这个快捷方式打开 Codex，即可同步启动本机服务和悬浮窗；关闭 Codex 后，启动器会停止 Token Trace。
-
-> 这个模式最省资源：不点快捷方式时，没有后台守护进程常驻。
 
 ## 可选：登录后守护模式
 
@@ -155,14 +153,6 @@ node token-stats.mjs --detail         # 附带每次请求明细
 node token-stats.mjs --all            # 所有对话的累计消耗
 ```
 
-## 开发者：重新打包 exe（可选）
-
-```powershell
-cd build
-npm install          # 首次需要：安装 @yao-pkg/pkg
-.\node_modules\.bin\pkg ..\token-stats.mjs --target node22-win-x64 --output ..\release\exe-version\ccm-token-spend.exe
-```
-
 ## 更新记录（Changelog）
 
 版本更新说明见 [CHANGELOG.md](CHANGELOG.md)。
@@ -180,7 +170,7 @@ npm install          # 首次需要：安装 @yao-pkg/pkg
 
 欢迎大家测试后分享自己的运行环境，帮助项目收集更多兼容性数据。请在 [GitHub Discussions](https://github.com/lanm777888999-stack/codex-token-trace/discussions) 的 **General** 分类新建讨论，按模板填写即可（会自动带上「测试报告」标签）：
 
-- **Release 版本号**：如 `v1.2-node`（Node 版）/ `v1.2-exe`（内置 Node 版）
+- **Release 版本号**：如 `v1.0.0`（命令行或便携包）
 - **操作系统**：如 Windows 10 / Windows 11
 - **Codex 桌面版版本号**：如 `26.727.6591.0`
 - **是否成功运行**：成功 / 部分功能异常 / 失败

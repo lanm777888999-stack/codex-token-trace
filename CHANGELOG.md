@@ -5,8 +5,9 @@
 ## 未发布
 
 ### 开源一键安装
-- 新增 `Install-TokenTrace.ps1`：从 GitHub 固定提交下载公开源码，并在缺少 Node.js 22+ 时自动获取官方运行时。
-- 新增 README 可复制的一行 PowerShell 安装命令；无需手动下载或解压项目压缩包。
+- 安装器改为固定发布标签 `v1.0.0`，优先 jsDelivr CDN、失败时回退 GitHub Raw；彻底移除 GitHub API、GitHub 登录和 Token 依赖。
+- 新增带 Node.js 运行时的便携 ZIP 构建脚本；用户可解压后双击 `Install.cmd`。
+- 移除旧 Codex++ 注入脚本、旧启动器及旧预览图，避免新用户进入过期链路。
 - 新增 MIT `LICENSE`、安全与第三方运行时说明、公开发布自检脚本。
 
 ### WMI 事件守护

@@ -3,7 +3,7 @@
 $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $required = @(
-  "Install-TokenTrace.ps1", "token-stats.mjs", "dashboard.html", "floating-panel.ps1",
+  "Install-TokenTrace.ps1", "Build-Portable.ps1", "token-stats.mjs", "dashboard.html", "floating-panel.ps1",
   "guardian.ps1", "install-autostart.ps1", "uninstall-autostart.ps1", "start-token-trace.ps1",
   "assets\token_black_cat.png", "docs\images\dashboard-overview-demo.png", "LICENSE", "SECURITY.md", "THIRD_PARTY_NOTICES.md"
 )
@@ -13,7 +13,7 @@ foreach ($relative in $required) {
   if (-not (Test-Path -LiteralPath $path)) { throw "Missing release file: $relative" }
 }
 
-foreach ($relative in @("Install-TokenTrace.ps1", "floating-panel.ps1", "guardian.ps1", "install-autostart.ps1", "uninstall-autostart.ps1", "start-token-trace.ps1")) {
+foreach ($relative in @("Install-TokenTrace.ps1", "Build-Portable.ps1", "floating-panel.ps1", "guardian.ps1", "install-autostart.ps1", "uninstall-autostart.ps1", "start-token-trace.ps1")) {
   $tokens = $null
   $errors = $null
   [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $scriptDir $relative), [ref]$tokens, [ref]$errors) | Out-Null
@@ -24,6 +24,16 @@ $node = Get-Command node -ErrorAction SilentlyContinue
 if ($node) {
   & $node.Source --check (Join-Path $scriptDir "token-stats.mjs")
   if ($LASTEXITCODE -ne 0) { throw "Node.js syntax check failed." }
+}
+
+$installer = Join-Path $scriptDir "Install-TokenTrace.ps1"
+$installerText = Get-Content -LiteralPath $installer -Raw
+$apiHost = "api" + ".github.com"
+if ($installerText.Contains($apiHost)) { throw "Installer must not call GitHub API." }
+if ($installerText -match "Get-Command\s+gh|gh\s+auth") { throw "Installer must not depend on GitHub CLI." }
+$selfTest = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $installer -SelfTest 2>&1
+if ($LASTEXITCODE -ne 0 -or ($selfTest -join "`n") -notmatch "CDN primary, Raw fallback") {
+  throw "Installer URL construction self-test failed."
 }
 
 $sensitivePath = "C:\Users\LKTX"

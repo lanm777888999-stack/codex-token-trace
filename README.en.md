@@ -35,16 +35,20 @@ Codex++ is not required. The default mode does not inject scripts into Codex, do
 Run this in PowerShell:
 
 ```powershell
-$u='https://raw.githubusercontent.com/lanm777888999-stack/codex-token-trace/main/Install-TokenTrace.ps1'; $p=Join-Path $env:TEMP 'Install-TokenTrace.ps1'; Invoke-WebRequest $u -OutFile $p; powershell -NoProfile -ExecutionPolicy Bypass -File $p
+$v='v1.0.0'; $p=Join-Path $env:TEMP 'Install-TokenTrace.ps1'; try { Invoke-WebRequest "https://cdn.jsdelivr.net/gh/lanm777888999-stack/codex-token-trace@$v/Install-TokenTrace.ps1" -OutFile $p -ErrorAction Stop } catch { Invoke-WebRequest "https://raw.githubusercontent.com/lanm777888999-stack/codex-token-trace/$v/Install-TokenTrace.ps1" -OutFile $p -ErrorAction Stop }; powershell -NoProfile -ExecutionPolicy Bypass -File $p
 ```
 
-It pins one GitHub commit, downloads the required source files, obtains the official Node.js runtime only when needed, and enables WMI follow mode. Open Codex normally from any entry afterwards.
+It downloads the fixed `v1.0.0` release from jsDelivr first and GitHub Raw second, file by file. It never calls the GitHub API, needs no GitHub sign-in/token, downloads the official Node.js runtime only when needed, and enables WMI follow mode.
 
 To inspect the installer before execution, open [Install-TokenTrace.ps1](Install-TokenTrace.ps1). To disable automatic following, run:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\TokenTrace\uninstall-autostart.ps1"
 ```
+
+## Portable ZIP
+
+Download [TokenTrace-v1.0.0-portable.zip](https://github.com/lanm777888999-stack/codex-token-trace/releases/download/v1.0.0/TokenTrace-v1.0.0-portable.zip), extract it, and double-click `Install.cmd`. The package includes the Node.js runtime; `Start.cmd` opens the panel manually and `Uninstall.cmd` removes auto-follow mode.
 
 ## Run
 
@@ -73,10 +77,9 @@ http://127.0.0.1:8766
 - `floating-panel.ps1` - independent Windows floating panel, freely draggable, remembers its position, and uses the black-cat Token logo by default.
 - `start-token-trace.ps1` - starts the server and floating panel manually.
 - `Install-TokenTrace.ps1` - public one-command installer.
-- `launch-codex-token-trace.ps1` / `install-launcher-mode.ps1` - low-resource launcher mode: starts Token Trace with Codex and stops it when Codex exits.
-- `guardian.ps1` - optional WMI event guardian that reacts to Codex process start/stop events without polling.
+- `Build-Portable.ps1` - builds the portable ZIP and SHA-256 file for a release.
+- `guardian.ps1` - WMI event guardian that reacts to Codex process start/stop events without polling.
 - `install-autostart.ps1` / `uninstall-autostart.ps1` - install/uninstall the scheduled task.
-- `codex-token-spend-panel.js` - legacy Codex++ injected panel, kept for compatibility only.
 
 ## Dashboard
 
@@ -93,15 +96,7 @@ The floating ball uses `assets/token_black_cat.png` by default. In the browser d
 
 The data pack includes task summaries and numeric metrics. It does not include full conversations, file paths, secrets, or raw logs.
 
-## Low-resource launcher mode
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\install-launcher-mode.ps1
-```
-
-This creates a desktop shortcut named `Codex + Token Trace.lnk`. Use that shortcut to launch Codex with Token Trace. When Codex exits, Token Trace exits too. No logon guardian stays running in the background.
-
-## Optional guardian mode
+## WMI guardian mode
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\install-autostart.ps1

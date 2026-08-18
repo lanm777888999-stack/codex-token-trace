@@ -22,10 +22,10 @@ Codex++ 不是前提。不要要求用户安装 Codex++。
 ## 1.1 面向普通用户的一键安装
 
 ```powershell
-$u='https://raw.githubusercontent.com/lanm777888999-stack/codex-token-trace/main/Install-TokenTrace.ps1'; $p=Join-Path $env:TEMP 'Install-TokenTrace.ps1'; Invoke-WebRequest $u -OutFile $p; powershell -NoProfile -ExecutionPolicy Bypass -File $p
+$v='v1.0.0'; $p=Join-Path $env:TEMP 'Install-TokenTrace.ps1'; try { Invoke-WebRequest "https://cdn.jsdelivr.net/gh/lanm777888999-stack/codex-token-trace@$v/Install-TokenTrace.ps1" -OutFile $p -ErrorAction Stop } catch { Invoke-WebRequest "https://raw.githubusercontent.com/lanm777888999-stack/codex-token-trace/$v/Install-TokenTrace.ps1" -OutFile $p -ErrorAction Stop }; powershell -NoProfile -ExecutionPolicy Bypass -File $p
 ```
 
-安装器固定一次 GitHub 提交后下载所需文件；没有 Node.js 22+ 时才下载官方 Node 运行时。不要改为要求用户下载 ZIP 或安装 Codex++。
+安装器固定使用发布标签 `v1.0.0`，优先 jsDelivr、失败时回退 GitHub Raw；不调用 GitHub API，不需要 GitHub 登录、Token 或 `gh`。没有 Node.js 22+ 时才下载官方 Node 运行时。另提供便携 ZIP 给希望解压后双击使用的用户。
 
 ## 2. 手动启动
 
@@ -46,15 +46,7 @@ powershell -ExecutionPolicy Bypass -File .\start-token-trace.ps1
 node token-stats.mjs --server
 ```
 
-## 3. 低耗启动器模式（推荐）
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\install-launcher-mode.ps1
-```
-
-这会移除登录后守护计划任务（不删除本机设置），并在桌面创建 `Codex + Token Trace.lnk`。用户从该快捷方式启动 Codex 时，Token Trace 同步启动；Codex 退出后，Token Trace 同步停止。
-
-## 4. WMI 事件守护模式（可选）
+## 3. WMI 事件守护模式
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\install-autostart.ps1
@@ -95,7 +87,7 @@ Invoke-RestMethod http://127.0.0.1:8766/api/pack
 |---|---|
 | 浏览器打不开 `127.0.0.1:8766` | 确认 `token-stats.mjs --server` 或 `start-token-trace.ps1` 正在运行 |
 | 悬浮窗不出现 | 先启动 Codex 桌面版；确认本机服务正在运行；悬浮球可自由放置 |
-| 不想后台常驻 | 使用 `install-launcher-mode.ps1`，然后从桌面 `Codex + Token Trace.lnk` 打开 Codex |
+| 想手动启动 | 使用 `start-token-trace.ps1` |
 | 悬浮窗显示等待服务 | 检查 `%LOCALAPPDATA%\ccm-token-spend\server.log` |
 | 想换悬浮球封面 | 打开浏览器大型面板后点击「悬浮封面」，图片会自动居中裁切为圆形并保存到本机 |
 | 任务不是当前打开的旧任务 | 正常限制；不进入 Codex 页面时只能可靠识别“最近活动任务” |
@@ -104,6 +96,6 @@ Invoke-RestMethod http://127.0.0.1:8766/api/pack
 ## 7. Agent 约束
 
 - 不要读取或外传原始会话日志正文。
-- 不要安装 Codex++，不要复制 `codex-token-spend-panel.js` 到用户脚本目录。
+- 不要安装 Codex++，不要使用页面注入或调试端口作为默认路径。
 - 不要使用 `--cdp` 作为默认启动方式；新版默认是 `--server`。
 - 不要主动打包 exe、提交或推送，除非用户明确要求。
