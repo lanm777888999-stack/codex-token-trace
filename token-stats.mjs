@@ -179,6 +179,7 @@ function buildStats(parsed) {
 // aggregate itself is refreshed at most once every five seconds.
 const parsedFileCache = new Map();
 let dailySummaryCache = { dateKey: "", builtAt: 0, value: null };
+const periodComparisonCache = new Map();
 
 function localDateKey(value) {
   const d = value instanceof Date ? value : new Date(value);
@@ -547,6 +548,109 @@ function payloadFor(stats, daily = null) {
   };
 }
 
+function comparisonWindow(period, now = new Date()) {
+  const end = now.getTime();
+  if (period === "today") {
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    const currentStart = start.getTime();
+    const elapsed = Math.max(1, end - currentStart);
+    const baselineStart = currentStart - 24 * 60 * 60 * 1000;
+    return {
+      period: "today",
+      title: "今日",
+      baselineLabel: "昨日同期",
+      days: 1,
+      currentStart,
+      currentEnd: end,
+      baselineStart,
+      baselineEnd: baselineStart + elapsed,
+    };
+  }
+  const days = period === "30" ? 30 : 7;
+  const duration = days * 24 * 60 * 60 * 1000;
+  return {
+    period: String(days),
+    title: `近 ${days} 天`,
+    baselineLabel: `前 ${days} 天`,
+    days,
+    currentStart: end - duration,
+    currentEnd: end,
+    baselineStart: end - duration * 2,
+    baselineEnd: end - duration,
+  };
+}
+
+function buildPeriodComparison(period = "7", now = new Date()) {
+  const window = comparisonWindow(period, now);
+  const cacheKey = `${window.period}|${localDateKey(now)}`;
+  const cached = periodComparisonCache.get(cacheKey);
+  if (cached && Date.now() - cached.builtAt < 10000) return cached.value;
+
+  const empty = () => ({ total: 0, input: 0, cached: 0, output: 0, requestCount: 0, taskIds: new Set() });
+  const current = empty();
+  const baseline = empty();
+  const add = (bucket, count, threadId) => {
+    const input = Number.isFinite(count.input) ? count.input : 0;
+    const cachedInput = Number.isFinite(count.cached) ? count.cached : 0;
+    const output = Number.isFinite(count.output) ? count.output : 0;
+    bucket.total += Number.isFinite(count.lastTotal) ? count.lastTotal : input + output;
+    bucket.input += input;
+    bucket.cached += cachedInput;
+    bucket.output += output;
+    bucket.requestCount += 1;
+    bucket.taskIds.add(threadId);
+  };
+
+  for (const file of findRolloutFiles()) {
+    try {
+      if (fs.statSync(file).mtimeMs < window.baselineStart) continue;
+    } catch {
+      continue;
+    }
+    const parsed = parseFileCached(file);
+    if (!parsed) continue;
+    const threadId = parsed.threadId || threadIdOf(file) || "unknown";
+    for (const count of parsed.counts) {
+      const ts = new Date(count.ts).getTime();
+      if (!Number.isFinite(ts)) continue;
+      if (ts >= window.currentStart && ts <= window.currentEnd) add(current, count, threadId);
+      else if (ts >= window.baselineStart && ts < window.baselineEnd) add(baseline, count, threadId);
+    }
+  }
+
+  const finalize = (bucket) => {
+    const taskCount = bucket.taskIds.size;
+    return {
+      total: bucket.total,
+      dailyAverage: bucket.total / window.days,
+      averagePerTask: taskCount ? bucket.total / taskCount : 0,
+      input: bucket.input,
+      cached: bucket.cached,
+      uncached: Math.max(0, bucket.input - bucket.cached),
+      output: bucket.output,
+      taskCount,
+      requestCount: bucket.requestCount,
+    };
+  };
+  const currentValue = finalize(current);
+  const baselineValue = finalize(baseline);
+  const fields = ["total", "dailyAverage", "averagePerTask", "uncached", "cached", "output", "taskCount", "requestCount"];
+  const changes = Object.fromEntries(fields.map((field) => [field, percentChange(currentValue[field], baselineValue[field])]));
+  const value = {
+    period: window.period,
+    title: window.title,
+    baselineLabel: window.baselineLabel,
+    currentRange: { start: new Date(window.currentStart).toISOString(), end: new Date(window.currentEnd).toISOString() },
+    baselineRange: { start: new Date(window.baselineStart).toISOString(), end: new Date(window.baselineEnd).toISOString() },
+    current: currentValue,
+    baseline: baselineValue,
+    changes,
+  };
+  periodComparisonCache.set(cacheKey, { builtAt: Date.now(), value });
+  return value;
+}
+
 function normalizePrices(value) {
   const incoming = Array.isArray(value) ? value : [];
   return DEFAULT_PRICES.map((base) => {
@@ -680,6 +784,34 @@ function demoPayload() {
   };
 }
 
+function demoComparison(period = "7") {
+  const days = period === "today" ? 1 : period === "30" ? 30 : 7;
+  const scale = days === 1 ? 1 : days * 0.86;
+  const baselineScale = scale / 1.124;
+  const make = (factor, taskCount) => ({
+    total: Math.round(3830000 * factor),
+    dailyAverage: Math.round((3830000 * factor) / days),
+    averagePerTask: Math.round((3830000 * factor) / taskCount),
+    input: Math.round(3542000 * factor),
+    cached: Math.round(3220000 * factor),
+    uncached: Math.round(322000 * factor),
+    output: Math.round(288000 * factor),
+    taskCount,
+    requestCount: Math.round(185 * factor),
+  });
+  const current = make(scale, days === 1 ? 3 : Math.round(days * 2.4));
+  const baseline = make(baselineScale, Math.max(1, Math.round(current.taskCount / 1.08)));
+  const fields = ["total", "dailyAverage", "averagePerTask", "uncached", "cached", "output", "taskCount", "requestCount"];
+  return {
+    period: period === "today" ? "today" : String(days),
+    title: period === "today" ? "今日" : `近 ${days} 天`,
+    baselineLabel: period === "today" ? "昨日同期" : `前 ${days} 天`,
+    current,
+    baseline,
+    changes: Object.fromEntries(fields.map((field) => [field, percentChange(current[field], baseline[field])])),
+  };
+}
+
 function analysisPack(payload = publicPayload()) {
   const daily = payload.daily || {};
   const prices = payload.prices || [];
@@ -777,6 +909,10 @@ function startServer({ host = "127.0.0.1", port = 8766, demo = false } = {}) {
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/state") return sendJson(res, 200, getPayload());
+      if (req.method === "GET" && url.pathname === "/api/comparison") {
+        const period = ["today", "7", "30"].includes(url.searchParams.get("period")) ? url.searchParams.get("period") : "7";
+        return sendJson(res, 200, demo ? demoComparison(period) : buildPeriodComparison(period));
+      }
       if (req.method === "GET" && url.pathname === "/api/pack") return sendJson(res, 200, { text: analysisPack(getPayload()) });
       if (req.method === "GET" && url.pathname === "/api/prices") return sendJson(res, 200, { prices: loadPrices() });
       if (req.method === "POST" && url.pathname === "/api/prices") {
@@ -1335,6 +1471,7 @@ export {
   median,
   buildRuleInsights,
   buildDailySummary,
+  buildPeriodComparison,
   payloadFor,
   DEFAULT_PRICES,
   loadPrices,

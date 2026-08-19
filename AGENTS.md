@@ -10,8 +10,8 @@
 ## 目录结构
 
 - `token-stats.mjs`：核心统计、本机 HTTP API 和浏览器页面服务。
-- `dashboard.html`：大型统计界面，展示今日累计、任务占比、Token 构成、模型消费对比和数据包复制。
-- `floating-panel.ps1`：Windows 无边框悬浮入口，可自由拖动并记住位置，点击展开/收起；默认使用 `assets/token_black_cat.png`，并支持用户上传圆形自定义封面。
+- `dashboard.html`：大型统计界面，以统一左侧栏组织今日累计、任务占比、阶段使用对比、Token 构成、模型消费对比和数据包复制。
+- `floating-panel.ps1`：Windows 无边框圆形悬浮入口，可自由拖动并记住位置，悬停展开侧边卡片，拖到左右边缘后可通过箭头收纳/恢复；默认使用 `assets/token_black_cat.png`，并支持用户上传圆形自定义封面。
 - `start-token-trace.ps1`：手动启动本机服务和悬浮入口。
 - `guardian.ps1`：WMI 事件守护进程；订阅 Codex / ChatGPT 进程启停事件，不使用定时轮询。
 - `install-autostart.ps1` / `uninstall-autostart.ps1`：守护模式安装/卸载。
@@ -23,6 +23,7 @@
 - `token-stats.mjs --server` 读取 Codex 本地 rollout 日志，并提供：
   - `GET /`：浏览器大型界面；
   - `GET /api/state`：今日汇总、最近活动任务、价格表和模型消费；
+  - `GET /api/comparison?period=today|7|30`：当前阶段与自动匹配前一阶段的对比指标；
   - `GET /api/pack`：提示词 + 数据包；
   - `POST /api/prices`：保存本机模型价格；
   - `POST /api/prices/reset`：恢复演示价格。
@@ -50,6 +51,7 @@
   - `Invoke-RestMethod http://127.0.0.1:8766/api/health`
   - `Invoke-RestMethod http://127.0.0.1:8766/api/state`
   - `Invoke-RestMethod http://127.0.0.1:8766/api/pack`
+  - `Invoke-RestMethod 'http://127.0.0.1:8766/api/comparison?period=7'`
 - 代码检查：
   - `node --check token-stats.mjs`
   - `powershell -NoProfile -ExecutionPolicy Bypass -File .\floating-panel.ps1 -SelfTest`

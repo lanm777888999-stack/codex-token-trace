@@ -37,22 +37,9 @@
       --shadow: rgba(28, 35, 55, .07);
     }
     * { box-sizing: border-box; }
-    body { margin: 0; min-height: 100vh; background: var(--bg); }
+    body { margin: 0; min-height: 100vh; color: var(--text); background: var(--bg); }
     button, input { font: inherit; }
     button { color: inherit; cursor: pointer; }
-    .top {
-      position: sticky;
-      top: 0;
-      z-index: 3;
-      height: 58px;
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      padding: 0 20px;
-      background: color-mix(in srgb, var(--bg) 92%, transparent);
-      border-bottom: 1px solid var(--line);
-      backdrop-filter: blur(14px);
-    }
     .brand { display: flex; align-items: center; gap: 10px; min-width: 210px; }
     .mark {
       width: 30px;
@@ -66,17 +53,6 @@
     }
     .brand strong { display: block; font-size: 14px; letter-spacing: .08em; }
     .brand span { display: block; color: var(--muted); font-size: 11px; margin-top: 1px; }
-    .tabs { display: flex; gap: 4px; flex: 1; }
-    .tab {
-      height: 34px;
-      padding: 0 12px;
-      border: 1px solid transparent;
-      background: transparent;
-      border-radius: 7px;
-      color: var(--muted);
-    }
-    .tab.active { color: var(--text); background: var(--panel-2); border-color: var(--line); }
-    .actions { display: flex; gap: 8px; align-items: center; }
     .btn {
       height: 34px;
       padding: 0 12px;
@@ -161,14 +137,9 @@
       border: 1px solid var(--line);
       border-radius: 8px;
     }
-    .hidden { display: none; }
+    .hidden { display: none !important; }
     .file-input { display: none; }
     body[data-theme="light"] { background: linear-gradient(180deg, #f7f8fb 0%, #f1f3f7 100%); }
-    body[data-theme="light"] .top {
-      background: rgba(247, 248, 251, .88);
-      border-bottom-color: #e5e7ee;
-      box-shadow: 0 10px 28px rgba(25, 31, 45, .04);
-    }
     body[data-theme="light"] .mark {
       border-radius: 9px;
       color: #ffffff;
@@ -178,15 +149,6 @@
     body[data-theme="light"] .brand strong {
       color: #101827;
       letter-spacing: 0;
-    }
-    body[data-theme="light"] .tab {
-      color: #5f6878;
-      font-weight: 600;
-    }
-    body[data-theme="light"] .tab.active {
-      color: #6f52e6;
-      background: #eee9ff;
-      border-color: transparent;
     }
     body[data-theme="light"] .btn {
       border-radius: 11px;
@@ -301,31 +263,171 @@
       pointer-events: none;
     }
     .toast.show { opacity: 1; }
+    .sidebar {
+      position: fixed;
+      inset: 0 auto 0 0;
+      z-index: 5;
+      width: 224px;
+      display: flex;
+      flex-direction: column;
+      padding: 18px 14px;
+      background: color-mix(in srgb, var(--panel) 96%, transparent);
+      border-right: 1px solid var(--line);
+      box-shadow: 16px 0 40px rgba(0, 0, 0, .06);
+      backdrop-filter: blur(18px);
+    }
+    .sidebar .brand { min-width: 0; padding: 0 8px 18px; }
+    .sidebar .mark { flex: 0 0 auto; border-radius: 10px; }
+    .nav-group { margin-top: 14px; }
+    .nav-label {
+      padding: 0 10px 8px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+    }
+    .nav-list { display: grid; gap: 5px; }
+    .nav-item, .side-action {
+      width: 100%;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 11px;
+      border: 1px solid transparent;
+      border-radius: 11px;
+      background: transparent;
+      color: var(--muted);
+      text-align: left;
+      font-weight: 650;
+    }
+    .nav-item:hover, .side-action:hover { color: var(--text); background: var(--panel-2); }
+    .nav-item.active { color: var(--text); background: var(--panel-2); border-color: var(--line); }
+    .nav-icon { width: 20px; text-align: center; font-size: 15px; }
+    .side-actions { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--line); }
+    .side-action.primary { color: var(--cyan); }
+    .sidebar-foot { padding: 12px 10px 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+    .wrap { max-width: 1460px; margin: 0 auto 0 224px; padding: 28px 32px 36px; }
+    .page-heading { display: flex; justify-content: space-between; gap: 16px; margin: 0 0 20px; }
+    .page-heading h1 { margin: 0; font-size: 24px; letter-spacing: -.035em; }
+    .page-heading p { margin: 7px 0 0; color: var(--muted); font-size: 12px; }
+    .period-switch {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: var(--panel);
+    }
+    .period-btn {
+      height: 32px;
+      padding: 0 13px;
+      border: 0;
+      border-radius: 9px;
+      color: var(--muted);
+      background: transparent;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .period-btn.active { color: var(--text); background: var(--panel-2); box-shadow: 0 4px 12px var(--shadow); }
+    .comparison-layout { display: grid; gap: 12px; }
+    .comparison-hero {
+      display: grid;
+      grid-template-columns: 1.15fr .85fr;
+      min-height: 190px;
+      overflow: hidden;
+    }
+    .comparison-main { padding: 24px; }
+    .comparison-main .value { font-size: 48px; }
+    .comparison-baseline {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 24px;
+      background: var(--panel-2);
+      border-left: 1px solid var(--line);
+    }
+    .baseline-value { margin-top: 10px; font-size: 26px; font-weight: 800; }
+    .change {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      margin-top: 12px;
+      padding: 5px 8px;
+      border-radius: 999px;
+      background: var(--panel-2);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 750;
+    }
+    .change.up { color: var(--rose); }
+    .change.down { color: var(--green); }
+    .comparison-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .compare-kpi { padding: 18px; }
+    .compare-kpi strong { display: block; margin-top: 10px; font-size: 27px; }
+    .compare-kpi .compare-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+    .compare-kpi .change { margin-top: 0; }
+    .component-list { padding: 8px 16px 16px; }
+    .component-row {
+      display: grid;
+      grid-template-columns: 130px minmax(180px, 1fr) 120px 120px 88px;
+      align-items: center;
+      gap: 14px;
+      min-height: 64px;
+      border-bottom: 1px solid var(--line);
+      font-size: 12px;
+    }
+    .component-row:last-child { border-bottom: 0; }
+    .component-name { font-weight: 700; }
+    .compare-track { height: 8px; overflow: hidden; border-radius: 999px; background: var(--panel-2); }
+    .compare-track i { display: block; height: 100%; border-radius: inherit; background: var(--cyan); }
+    .component-value { text-align: right; font-weight: 750; }
+    .component-row .change { justify-self: end; margin-top: 0; }
+    body[data-theme="light"] .sidebar { background: rgba(255, 255, 255, .92); border-right-color: #e7e9f0; }
+    body[data-theme="light"] .nav-item.active { color: #6f52e6; background: #f0ecff; border-color: transparent; }
+    body[data-theme="light"] .period-btn.active { color: #6f52e6; background: #f0ecff; }
+    body[data-theme="light"] .comparison-baseline { background: #f8f7fc; border-left-color: #ececf2; }
     @media (max-width: 980px) {
       .summary, .main { grid-template-columns: 1fr; }
       .models, .split { grid-template-columns: 1fr 1fr; }
-      .tabs { display: none; }
+      .sidebar { width: 190px; }
+      .wrap { margin-left: 190px; padding: 20px; }
+      .comparison-kpis { grid-template-columns: 1fr; }
+      .component-row { grid-template-columns: 100px 1fr 88px; }
+      .component-row .baseline-cell, .component-row .current-cell { display: none; }
     }
   </style>
 </head>
 <body>
-  <header class="top">
+  <aside class="sidebar">
     <div class="brand"><div class="mark">T</div><div><strong>Token 计量</strong><span>本机数据面板</span></div></div>
-    <nav class="tabs">
-      <button class="tab active" data-view="overview">总览</button>
-      <button class="tab" data-view="prices">价格</button>
-      <button class="tab" data-view="pack">数据包</button>
-    </nav>
-    <div class="actions">
-      <button class="btn" data-action="theme">浅色</button>
-      <button class="btn" data-action="cover">悬浮封面</button>
-      <button class="btn" data-action="prices">模型价格</button>
-      <button class="btn primary" data-action="copy">复制提示词+数据</button>
+    <div class="nav-group">
+      <div class="nav-label">数据视图</div>
+      <nav class="nav-list">
+        <button class="nav-item active" data-view="overview"><span class="nav-icon">◫</span>总览</button>
+        <button class="nav-item" data-view="comparison"><span class="nav-icon">↗</span>使用对比</button>
+        <button class="nav-item" data-view="prices"><span class="nav-icon">＄</span>模型价格</button>
+        <button class="nav-item" data-view="pack"><span class="nav-icon">≡</span>数据包</button>
+      </nav>
+    </div>
+    <div class="side-actions">
+      <div class="nav-label">快捷操作</div>
+      <div class="nav-list">
+        <button class="side-action" data-action="theme"><span class="nav-icon">◐</span><span class="action-label">浅色主题</span></button>
+        <button class="side-action" data-action="cover"><span class="nav-icon">◉</span>更换悬浮封面</button>
+        <button class="side-action primary" data-action="copy"><span class="nav-icon">＋</span>复制分析包</button>
+      </div>
       <input class="file-input" id="coverInput" type="file" accept="image/*">
     </div>
-  </header>
+    <div class="sidebar-foot">数据仅从本机 Codex 会话日志读取</div>
+  </aside>
 
   <main class="wrap">
+    <div class="page-heading" id="globalHeading">
+      <div><h1 id="viewTitle">Token 总览</h1><p id="viewSubtitle">先看今天消耗了多少，再定位高消耗任务</p></div>
+    </div>
     <section id="overviewView">
       <div class="grid summary">
         <article class="panel box">
@@ -358,6 +460,40 @@
       </div>
     </section>
 
+    <section id="comparisonView" class="hidden">
+      <div class="page-heading">
+        <div><h1>阶段使用对比</h1><p id="comparisonDescription">近 7 天与前 7 天自动对齐比较</p></div>
+        <div class="period-switch" aria-label="对比时间范围">
+          <button class="period-btn" data-period="today">今日</button>
+          <button class="period-btn active" data-period="7">近 7 天</button>
+          <button class="period-btn" data-period="30">近 30 天</button>
+        </div>
+      </div>
+      <div class="comparison-layout">
+        <article class="panel comparison-hero">
+          <div class="comparison-main">
+            <div class="label" id="comparisonTitle">近 7 天总 Token</div>
+            <div class="value" id="comparisonTotal">--</div>
+            <div class="change" id="comparisonTotalChange">暂无基准</div>
+          </div>
+          <div class="comparison-baseline">
+            <div class="label" id="comparisonBaselineLabel">前 7 天</div>
+            <div class="baseline-value" id="comparisonBaselineTotal">--</div>
+            <div class="sub" id="comparisonRequestNote">请求次数 --</div>
+          </div>
+        </article>
+        <div class="comparison-kpis">
+          <article class="panel compare-kpi"><div class="label">日均 Token</div><strong id="comparisonDailyAverage">--</strong><div class="compare-foot"><span class="sub" id="comparisonDailyBaseline">前期 --</span><span class="change" id="comparisonDailyChange">--</span></div></article>
+          <article class="panel compare-kpi"><div class="label">单任务平均 Token</div><strong id="comparisonTaskAverage">--</strong><div class="compare-foot"><span class="sub" id="comparisonTaskBaseline">前期 --</span><span class="change" id="comparisonTaskChange">--</span></div></article>
+          <article class="panel compare-kpi"><div class="label">任务数量</div><strong id="comparisonTaskCount">--</strong><div class="compare-foot"><span class="sub" id="comparisonTaskCountBaseline">前期 --</span><span class="change" id="comparisonTaskCountChange">--</span></div></article>
+        </div>
+        <article class="panel">
+          <div class="head"><h2>Token 构成变化</h2><span>区分新输入、缓存输入和输出带来的增长</span></div>
+          <div class="component-list" id="comparisonComponents"></div>
+        </article>
+      </div>
+    </section>
+
     <section id="pricesView" class="hidden">
       <article class="panel">
         <div class="head"><h2>模型价格表</h2><span>单位：USD / 1M Token，本机保存</span><button class="btn" data-action="reset">恢复默认</button></div>
@@ -376,7 +512,14 @@
   <div class="toast" id="toast">已复制</div>
 
   <script>
-    const state = { data: null, view: "overview", selected: "", theme: localStorage.getItem("token-trace-theme") || "dark" };
+    const state = {
+      data: null,
+      comparison: null,
+      view: "overview",
+      selected: "",
+      period: localStorage.getItem("token-trace-period") || "7",
+      theme: localStorage.getItem("token-trace-theme") || "dark",
+    };
     const themeColors = {
       dark: ["#30d5c8", "#62c578", "#f2a93b", "#7aa7ff", "#e86978"],
       light: ["#7657e8", "#55bfa6", "#f5a33b", "#5a9be7", "#e2556f"],
@@ -397,6 +540,22 @@
     }
     function pct(n) {
       return Number.isFinite(Number(n)) ? Math.round(Number(n) * 100) + "%" : "--";
+    }
+    function changeText(n) {
+      if (n == null || n === "") return "暂无基准";
+      n = Number(n);
+      if (!Number.isFinite(n)) return "暂无基准";
+      return `${n > 0 ? "+" : ""}${n.toFixed(1)}%`;
+    }
+    function paintChange(element, value, neutral = false) {
+      if (!element) return;
+      const n = Number(value);
+      element.textContent = changeText(value);
+      element.classList.remove("up", "down");
+      if (!neutral && value != null && Number.isFinite(n)) {
+        if (n > 0) element.classList.add("up");
+        if (n < 0) element.classList.add("down");
+      }
     }
     function esc(s) {
       return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
@@ -435,11 +594,24 @@
       render();
     }
     function setView(view) {
+      const previousView = state.view;
       state.view = view;
-      document.querySelectorAll(".tab").forEach(btn => btn.classList.toggle("active", btn.dataset.view === view));
+      document.querySelectorAll(".nav-item[data-view]").forEach(btn => btn.classList.toggle("active", btn.dataset.view === view));
       document.getElementById("overviewView").classList.toggle("hidden", view !== "overview");
+      document.getElementById("comparisonView").classList.toggle("hidden", view !== "comparison");
       document.getElementById("pricesView").classList.toggle("hidden", view !== "prices");
       document.getElementById("packView").classList.toggle("hidden", view !== "pack");
+      document.getElementById("globalHeading").classList.toggle("hidden", view === "comparison");
+      const copy = {
+        overview: ["Token 总览", "先看今天消耗了多少，再定位高消耗任务"],
+        prices: ["模型价格", "修改各模型单价，今日消费会立即重新套算"],
+        pack: ["分析数据包", "复制已经混合提示词的数据，交给任意 AI 分析"],
+      }[view];
+      if (copy) {
+        document.getElementById("viewTitle").textContent = copy[0];
+        document.getElementById("viewSubtitle").textContent = copy[1];
+      }
+      if (view === "comparison" && (previousView !== view || !state.comparison)) loadComparison();
       if (view === "pack") refreshPack();
     }
     function setTheme(theme) {
@@ -448,8 +620,8 @@
       document.body.dataset.theme = state.theme;
       localStorage.setItem("token-trace-theme", state.theme);
       fetch("/api/theme", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ theme: state.theme }) }).catch(() => {});
-      const btn = document.querySelector("[data-action='theme']");
-      if (btn) btn.textContent = state.theme === "light" ? "深色" : "浅色";
+      const label = document.querySelector("[data-action='theme'] .action-label");
+      if (label) label.textContent = state.theme === "light" ? "深色主题" : "浅色主题";
       if (state.data) render();
     }
     function render() {
@@ -468,6 +640,64 @@
       renderModels(daily);
       renderTimeline(daily);
       renderPrices();
+      if (state.comparison) renderComparison();
+    }
+
+    async function loadComparison() {
+      try {
+        const res = await fetch(`/api/comparison?period=${encodeURIComponent(state.period)}`, { cache: "no-store" });
+        if (!res.ok) throw new Error("comparison unavailable");
+        state.comparison = await res.json();
+        renderComparison();
+      } catch {
+        showToast("暂时无法读取历史对比");
+      }
+    }
+
+    function renderComparison() {
+      const data = state.comparison;
+      if (!data) return;
+      document.querySelectorAll("[data-period]").forEach(btn => btn.classList.toggle("active", btn.dataset.period === state.period));
+      document.getElementById("comparisonDescription").textContent = state.period === "today"
+        ? "今日截至当前时刻与昨日同期比较"
+        : `${data.title}与${data.baselineLabel}自动对齐比较`;
+      document.getElementById("comparisonTitle").textContent = `${data.title}总 Token`;
+      document.getElementById("comparisonTotal").textContent = fmt(data.current?.total);
+      document.getElementById("comparisonBaselineLabel").textContent = data.baselineLabel;
+      document.getElementById("comparisonBaselineTotal").textContent = fmt(data.baseline?.total);
+      document.getElementById("comparisonRequestNote").textContent = `请求 ${fmt(data.current?.requestCount)} 次 · 前期 ${fmt(data.baseline?.requestCount)} 次`;
+      paintChange(document.getElementById("comparisonTotalChange"), data.changes?.total);
+
+      const kpis = [
+        ["comparisonDailyAverage", "comparisonDailyBaseline", "comparisonDailyChange", "dailyAverage", false],
+        ["comparisonTaskAverage", "comparisonTaskBaseline", "comparisonTaskChange", "averagePerTask", false],
+        ["comparisonTaskCount", "comparisonTaskCountBaseline", "comparisonTaskCountChange", "taskCount", true],
+      ];
+      kpis.forEach(([valueId, baselineId, changeId, field, neutral]) => {
+        document.getElementById(valueId).textContent = fmt(data.current?.[field]);
+        document.getElementById(baselineId).textContent = `前期 ${fmt(data.baseline?.[field])}`;
+        paintChange(document.getElementById(changeId), data.changes?.[field], neutral);
+      });
+
+      const rows = [
+        ["新输入", "uncached", colors[0]],
+        ["缓存输入", "cached", colors[1]],
+        ["输出", "output", colors[2]],
+      ];
+      const max = Math.max(1, ...rows.flatMap(([, field]) => [Number(data.current?.[field]) || 0, Number(data.baseline?.[field]) || 0]));
+      document.getElementById("comparisonComponents").innerHTML = rows.map(([name, field, color]) => {
+        const current = Number(data.current?.[field]) || 0;
+        const baseline = Number(data.baseline?.[field]) || 0;
+        const change = data.changes?.[field];
+        const cls = Number.isFinite(Number(change)) ? (change > 0 ? "up" : change < 0 ? "down" : "") : "";
+        return `<div class="component-row">
+          <div class="component-name">${name}</div>
+          <div class="compare-track"><i style="width:${Math.max(2, current / max * 100)}%;background:${color}"></i></div>
+          <div class="component-value current-cell">${fmt(current)}</div>
+          <div class="component-value baseline-cell">${fmt(baseline)}</div>
+          <span class="change ${cls}">${changeText(change)}</span>
+        </div>`;
+      }).join("");
     }
     function renderComposition(daily) {
       const input = Number(daily.input) || 0;
@@ -600,10 +830,17 @@
     document.addEventListener("click", event => {
       const task = event.target.closest("[data-task]");
       if (task) { state.selected = task.dataset.task; render(); return; }
+      const period = event.target.closest("[data-period]")?.dataset.period;
+      if (period) {
+        state.period = period;
+        localStorage.setItem("token-trace-period", period);
+        document.querySelectorAll("[data-period]").forEach(btn => btn.classList.toggle("active", btn.dataset.period === period));
+        loadComparison();
+        return;
+      }
       const action = event.target.closest("[data-action]")?.dataset.action;
       const tab = event.target.closest("[data-view]")?.dataset.view;
       if (tab) setView(tab);
-      if (action === "prices") setView("prices");
       if (action === "theme") setTheme(state.theme === "light" ? "dark" : "light");
       if (action === "cover") document.getElementById("coverInput").click();
       if (action === "copy") copyPack();
@@ -623,6 +860,7 @@
     setTheme(state.theme);
     load();
     setInterval(load, 1500);
+    setInterval(() => { if (state.view === "comparison") loadComparison(); }, 10000);
   </script>
 </body>
 </html>

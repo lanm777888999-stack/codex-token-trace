@@ -13,6 +13,7 @@ if (-not (Test-Path -LiteralPath $stateDir)) { New-Item -ItemType Directory -Pat
 $serverPidFile = Join-Path $stateDir "server.pid"
 $panelPidFile = Join-Path $stateDir "floating-panel.pid"
 $serverLog = Join-Path $stateDir "server.log"
+$panelLog = Join-Path $stateDir "floating-panel.log"
 
 function Test-PidFileRunning {
   param([string]$Path)
@@ -59,7 +60,7 @@ if (-not (Test-PidFileRunning $serverPidFile)) {
 Stop-PidFile $panelPidFile
 $psExe = (Get-Command powershell.exe).Source
 $panelArgs = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + $panel + '" -ServerUrl "http://127.0.0.1:' + $Port + '"'
-$proc = Start-Process -FilePath $psExe -ArgumentList $panelArgs -WindowStyle Hidden -PassThru
+$proc = Start-Process -FilePath $psExe -ArgumentList $panelArgs -WindowStyle Hidden -RedirectStandardOutput $panelLog -RedirectStandardError ($panelLog + ".err") -PassThru
 Set-Content -LiteralPath $panelPidFile -Value $proc.Id -Encoding Ascii
 Write-Host "Floating panel started."
 

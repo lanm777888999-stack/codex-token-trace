@@ -12,9 +12,15 @@ Token Trace is a Windows companion for Codex / ChatGPT Desktop. It shows a dragg
 
 - Summarizes today's total Token use, requests, cache-hit rate, and input/cache/output composition.
 - Ranks Codex conversations by Token share with compact task titles.
+- Compares today with yesterday at the same time, the latest 7 days with the previous 7 days, or the latest 30 days with the previous 30 days. It includes total, daily average, per-task average, task count, and composition changes.
 - Compares theoretical cost for the same daily Token composition across editable model price entries.
-- Provides a draggable floating ball/card, synchronized dark/light themes, and a custom cover image.
+- Provides a smooth circular floating ball that opens its companion card on hover, docks to either screen edge, and can tuck behind an arrow tab.
+- Keeps dashboard navigation, model prices, data pack, theme, and cover controls in one left sidebar.
 - Copies a prompt plus sanitized statistics for analysis in any AI assistant.
+
+![Token Trace period comparison with public demo data](docs/images/dashboard-comparison-demo.png)
+
+> The comparison view defaults to the latest 7 days and automatically selects an equally long preceding baseline. All values shown here are built-in fictional demo data.
 
 Run the safe demo dashboard without reading local sessions:
 
@@ -35,10 +41,10 @@ Codex++ is not required. The default mode does not inject scripts into Codex, do
 Run this in PowerShell:
 
 ```powershell
-$v='v1.0.0'; $p=Join-Path $env:TEMP 'Install-TokenTrace.ps1'; try { Invoke-WebRequest "https://cdn.jsdelivr.net/gh/lanm777888999-stack/codex-token-trace@$v/Install-TokenTrace.ps1" -OutFile $p -ErrorAction Stop } catch { Invoke-WebRequest "https://raw.githubusercontent.com/lanm777888999-stack/codex-token-trace/$v/Install-TokenTrace.ps1" -OutFile $p -ErrorAction Stop }; powershell -NoProfile -ExecutionPolicy Bypass -File $p
+$v='v1.1.0'; $p=Join-Path $env:TEMP 'Install-TokenTrace.ps1'; try { Invoke-WebRequest "https://cdn.jsdelivr.net/gh/lanm777888999-stack/codex-token-trace@$v/Install-TokenTrace.ps1" -OutFile $p -ErrorAction Stop } catch { Invoke-WebRequest "https://raw.githubusercontent.com/lanm777888999-stack/codex-token-trace/$v/Install-TokenTrace.ps1" -OutFile $p -ErrorAction Stop }; powershell -NoProfile -ExecutionPolicy Bypass -File $p
 ```
 
-It downloads the fixed `v1.0.0` release from jsDelivr first and GitHub Raw second, file by file. It never calls the GitHub API, needs no GitHub sign-in/token, downloads the official Node.js runtime only when needed, and enables WMI follow mode.
+It downloads the fixed `v1.1.0` release from jsDelivr first and GitHub Raw second, file by file. It never calls the GitHub API, needs no GitHub sign-in/token, downloads the official Node.js runtime only when needed, and enables WMI follow mode.
 
 To inspect the installer before execution, open [Install-TokenTrace.ps1](Install-TokenTrace.ps1). To disable automatic following, run:
 
@@ -48,7 +54,7 @@ powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\TokenTrace\uninstall
 
 ## Portable ZIP
 
-Download [TokenTrace-v1.0.0-portable.zip](https://github.com/lanm777888999-stack/codex-token-trace/releases/download/v1.0.0/TokenTrace-v1.0.0-portable.zip), extract it, and double-click `Install.cmd`. The package includes the Node.js runtime; `Start.cmd` opens the panel manually and `Uninstall.cmd` removes auto-follow mode.
+Download [TokenTrace-v1.1.0-portable.zip](https://github.com/lanm777888999-stack/codex-token-trace/releases/download/v1.1.0/TokenTrace-v1.1.0-portable.zip), extract it, and double-click `Install.cmd`. The package includes the Node.js runtime; `Start.cmd` opens the panel manually and `Uninstall.cmd` removes auto-follow mode.
 
 ## Run
 
@@ -87,12 +93,13 @@ The browser dashboard focuses on:
 
 - today's total token usage;
 - per-task token share;
+- today / 7-day / 30-day comparisons against automatically aligned prior periods;
 - input / cached input / output composition;
 - editable model price comparison;
 - one-click prompt + data pack for analysis in another AI.
 - dark / light theme switching.
 
-The floating ball uses `assets/token_black_cat.png` by default. In the browser dashboard, use "悬浮封面" to upload an image; it is center-cropped into a circular PNG and saved locally at `%LOCALAPPDATA%\ccm-token-spend\floating-cover.png`.
+The floating ball uses `assets/token_black_cat.png` by default. Hovering opens the companion card beside the ball; leaving both closes it. Dragging the ball to the left or right edge snaps it into place and exposes an arrow that can tuck or restore it. In the browser dashboard sidebar, use "更换悬浮封面" to upload an image; it is center-cropped into a circular PNG and saved locally at `%LOCALAPPDATA%\ccm-token-spend\floating-cover.png`.
 
 The data pack includes task summaries and numeric metrics. It does not include full conversations, file paths, secrets, or raw logs.
 

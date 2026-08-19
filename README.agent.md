@@ -1,10 +1,10 @@
-# ccm-token-spend - Agent 安装指南
+# Token Trace - Agent 安装指南
 
 > 本文件给 AI 编码助手阅读。人类用户请优先看 [README.md](README.md)。
 
 ## 0. 这是什么
 
-- 工具名：ccm-token-spend / Token Trace。
+- 工具名：Token Trace。
 - 目标：为 Codex / ChatGPT 桌面版提供本机 Token 统计、独立悬浮窗和浏览器统计面板。
 - 新版不需要 Codex++，不使用页面注入、侧边栏或调试端口。
 - 数据来源：`%USERPROFILE%\.codex\sessions\...\rollout-*.jsonl`，只做本地统计。
@@ -22,10 +22,10 @@ Codex++ 不是前提。不要要求用户安装 Codex++。
 ## 1.1 面向普通用户的一键安装
 
 ```powershell
-$v='v1.0.0'; $p=Join-Path $env:TEMP 'Install-TokenTrace.ps1'; try { Invoke-WebRequest "https://cdn.jsdelivr.net/gh/lanm777888999-stack/codex-token-trace@$v/Install-TokenTrace.ps1" -OutFile $p -ErrorAction Stop } catch { Invoke-WebRequest "https://raw.githubusercontent.com/lanm777888999-stack/codex-token-trace/$v/Install-TokenTrace.ps1" -OutFile $p -ErrorAction Stop }; powershell -NoProfile -ExecutionPolicy Bypass -File $p
+$v='v1.1.0'; $p=Join-Path $env:TEMP 'Install-TokenTrace.ps1'; try { Invoke-WebRequest "https://cdn.jsdelivr.net/gh/lanm777888999-stack/codex-token-trace@$v/Install-TokenTrace.ps1" -OutFile $p -ErrorAction Stop } catch { Invoke-WebRequest "https://raw.githubusercontent.com/lanm777888999-stack/codex-token-trace/$v/Install-TokenTrace.ps1" -OutFile $p -ErrorAction Stop }; powershell -NoProfile -ExecutionPolicy Bypass -File $p
 ```
 
-安装器固定使用发布标签 `v1.0.0`，优先 jsDelivr、失败时回退 GitHub Raw；不调用 GitHub API，不需要 GitHub 登录、Token 或 `gh`。没有 Node.js 22+ 时才下载官方 Node 运行时。另提供便携 ZIP 给希望解压后双击使用的用户。
+安装器固定使用发布标签 `v1.1.0`，优先 jsDelivr、失败时回退 GitHub Raw；不调用 GitHub API，不需要 GitHub 登录、Token 或 `gh`。没有 Node.js 22+ 时才下载官方 Node 运行时。另提供便携 ZIP 给希望解压后双击使用的用户。
 
 ## 2. 手动启动
 
@@ -38,7 +38,7 @@ powershell -ExecutionPolicy Bypass -File .\start-token-trace.ps1
 这会启动：
 
 - 本机服务：`http://127.0.0.1:8766`
-- 独立 Windows 悬浮窗：可自由拖动并记住位置，点击展开/收起；默认黑猫 Token logo，可在浏览器面板里上传圆形自定义封面
+- 独立 Windows 悬浮窗：可自由拖动并记住位置，悬停展开侧边卡片；拖到左右边缘后可通过箭头收纳/恢复；默认黑猫 Token logo，可在浏览器面板里上传圆形自定义封面
 
 如果只想启动浏览器面板/API：
 
@@ -73,6 +73,7 @@ powershell -ExecutionPolicy Bypass -File .\uninstall-autostart.ps1
 Invoke-RestMethod http://127.0.0.1:8766/api/health
 Invoke-RestMethod http://127.0.0.1:8766/api/state
 Invoke-RestMethod http://127.0.0.1:8766/api/pack
+Invoke-RestMethod 'http://127.0.0.1:8766/api/comparison?period=7'
 ```
 
 成功时：
@@ -80,13 +81,14 @@ Invoke-RestMethod http://127.0.0.1:8766/api/pack
 - `/api/health` 返回 `ok: true`；
 - `/api/state` 返回 `mode: local-server`；
 - `/api/pack` 返回可复制给其他 AI 的提示词 + 数据包。
+- `/api/comparison` 返回今日、近 7 天或近 30 天及其自动匹配基准的对比指标。
 
 ## 6. 排查
 
 | 现象 | 处理 |
 |---|---|
 | 浏览器打不开 `127.0.0.1:8766` | 确认 `token-stats.mjs --server` 或 `start-token-trace.ps1` 正在运行 |
-| 悬浮窗不出现 | 先启动 Codex 桌面版；确认本机服务正在运行；悬浮球可自由放置 |
+| 悬浮窗不出现 | 先启动 Codex 桌面版；确认本机服务正在运行；悬浮球可能已收纳在屏幕左右边缘，可点击箭头恢复 |
 | 想手动启动 | 使用 `start-token-trace.ps1` |
 | 悬浮窗显示等待服务 | 检查 `%LOCALAPPDATA%\ccm-token-spend\server.log` |
 | 想换悬浮球封面 | 打开浏览器大型面板后点击「悬浮封面」，图片会自动居中裁切为圆形并保存到本机 |

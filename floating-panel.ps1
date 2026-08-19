@@ -5,18 +5,24 @@ param(
 
 $ErrorActionPreference = "Continue"
 
+Add-Type -AssemblyName PresentationFramework
+Add-Type -AssemblyName PresentationCore
+Add-Type -AssemblyName WindowsBase
+Add-Type -AssemblyName System.Xaml
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
-
 if ($SelfTest) {
+  if (-not ("System.Windows.Window" -as [type])) { throw "WPF is unavailable." }
   Write-Output "floating-panel.ps1 OK"
   exit 0
 }
 
-[System.Windows.Forms.Application]::EnableVisualStyles()
+if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne [System.Threading.ApartmentState]::STA) {
+  throw "Token Trace floating panel requires an STA PowerShell process."
+}
 
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $stateDir = Join-Path $env:LOCALAPPDATA "ccm-token-spend"
 if (-not (Test-Path -LiteralPath $stateDir)) { New-Item -ItemType Directory -Path $stateDir -Force | Out-Null }
 $posFile = Join-Path $stateDir "floating-panel-position.json"
@@ -29,32 +35,48 @@ function T {
 }
 
 $txtRecent = T @(0x6700,0x8FD1,0x6D3B,0x52A8,0x4EFB,0x52A1)
-$txtTurn = T @(0x672C,0x8F6E)
 $txtToday = T @(0x4ECA,0x65E5)
 $txtCache = T @(0x7F13,0x5B58)
 $txtOpen = T @(0x6253,0x5F00,0x9762,0x677F)
 $txtCopy = T @(0x590D,0x5236,0x6570,0x636E,0x5305)
-$txtCover = T @(0x66F4,0x6362,0x5C01,0x9762)
-$txtNoPlugin = T @(0x65E0,0x9700,0x63D2,0x4EF6)
-$txtCopied = T @(0x5DF2,0x590D,0x5236,0x6570,0x636E,0x5305)
-$txtCopyFailed = T @(0x590D,0x5236,0x5931,0x8D25)
-$txtCoverSaved = T @(0x5C01,0x9762,0x5DF2,0x66F4,0x65B0)
-$txtCoverFailed = T @(0x5C01,0x9762,0x66F4,0x65B0,0x5931,0x8D25)
-$txtSummary = ""
-$txtWaiting = T @(0x7B49,0x5F85,0x672C,0x673A,0x670D,0x52A1)
+$txtCopied = T @(0x5DF2,0x590D,0x5236)
+$txtWaiting = T @(0x7B49,0x5F85,0x6570,0x636E)
+$txtDockTip = T @(0x6536,0x8FDB,0x4FA7,0x8FB9)
+$txtRevealTip = T @(0x5C55,0x5F00,0x60AC,0x6D6E,0x7403)
+$txtChevronLeft = T @(0x2039)
+$txtChevronRight = T @(0x203A)
 
-$ballSize = 64
-$expandedW = 340
-$expandedH = 172
-$script:expanded = $false
-$script:lastData = $null
-$script:dragging = $false
-$script:mouseDown = $null
-$script:formStart = $null
-$script:moved = $false
-$script:coverImage = $null
-$script:coverStamp = ""
+$ballSize = 72.0
+$ballDiameter = 62.0
+$dockTabWidth = 30.0
+$panelWidth = 332.0
+$panelHeight = 194.0
+$panelGap = 10.0
+$dockThreshold = 42.0
+
 $script:theme = "dark"
+$script:lastData = $null
+$script:coverStamp = ""
+$script:dockSide = ""
+$script:tucked = $false
+$script:dragging = $false
+$script:moved = $false
+$script:panelSide = "left"
+
+function New-Brush {
+  param([string]$Color)
+  return (New-Object System.Windows.Media.BrushConverter).ConvertFromString($Color)
+}
+
+function New-CornerRadius {
+  param([double]$Value)
+  return New-Object System.Windows.CornerRadius($Value)
+}
+
+function New-Thickness {
+  param([double]$Left, [double]$Top = $Left, [double]$Right = $Left, [double]$Bottom = $Top)
+  return New-Object System.Windows.Thickness($Left, $Top, $Right, $Bottom)
+}
 
 function Format-Short {
   param([double]$Value)
@@ -69,39 +91,20 @@ function Get-State {
   try { return Invoke-RestMethod -Uri ($ServerUrl.TrimEnd("/") + "/api/state") -Method Get -TimeoutSec 1 } catch { return $null }
 }
 
-function Copy-Pack {
-  try {
-    $pack = Invoke-RestMethod -Uri ($ServerUrl.TrimEnd("/") + "/api/pack") -Method Get -TimeoutSec 2
-    if ($pack.text) {
-      [System.Windows.Forms.Clipboard]::SetText([string]$pack.text)
-      $script:statusLabel.Text = $txtCopied
-    }
-  } catch {
-    $script:statusLabel.Text = $txtCopyFailed
-  }
-}
-
 function Open-Dashboard {
   try { Start-Process ($ServerUrl.TrimEnd("/") + "/") } catch {}
 }
 
-function Load-ImageUnlocked {
-  param([string]$Path)
-  if (-not (Test-Path -LiteralPath $Path)) { return $null }
-  $bytes = $null
-  $stream = $null
-  $image = $null
+function Copy-Pack {
   try {
-    $bytes = [System.IO.File]::ReadAllBytes($Path)
-    $stream = New-Object -TypeName System.IO.MemoryStream -ArgumentList (,$bytes)
-    $image = [System.Drawing.Image]::FromStream($stream)
-    return New-Object -TypeName System.Drawing.Bitmap -ArgumentList $image
-  } catch {
-    return $null
-  } finally {
-    if ($image) { $image.Dispose() }
-    if ($stream) { $stream.Dispose() }
-  }
+    $pack = Invoke-RestMethod -Uri ($ServerUrl.TrimEnd("/") + "/api/pack") -Method Get -TimeoutSec 2
+    if ($pack.text) {
+      [System.Windows.Clipboard]::SetText([string]$pack.text)
+      $script:copyText.Text = $txtCopied
+      $script:copyFeedbackTimer.Stop()
+      $script:copyFeedbackTimer.Start()
+    }
+  } catch {}
 }
 
 function Get-CoverPath {
@@ -116,396 +119,549 @@ function Get-CoverStamp {
   try { return $path + "|" + ([System.IO.File]::GetLastWriteTimeUtc($path).Ticks.ToString()) } catch { return $path }
 }
 
-function New-FallbackCover {
-  $bmp = New-Object -TypeName System.Drawing.Bitmap -ArgumentList 256, 256
-  $graphics = [System.Drawing.Graphics]::FromImage($bmp)
-  $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-  $graphics.Clear([System.Drawing.Color]::Transparent)
-  $brush = New-Object System.Drawing.Drawing2D.LinearGradientBrush(
-    (New-Object -TypeName System.Drawing.Rectangle -ArgumentList 0, 0, 256, 256),
-    [System.Drawing.Color]::FromArgb(70, 226, 216),
-    [System.Drawing.Color]::FromArgb(41, 126, 255),
-    45
-  )
-  $graphics.FillEllipse($brush, 2, 2, 252, 252)
-  $font = New-Object System.Drawing.Font("Segoe UI", 92, [System.Drawing.FontStyle]::Bold)
-  $textBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(8, 18, 30))
-  $format = New-Object System.Drawing.StringFormat
-  $format.Alignment = [System.Drawing.StringAlignment]::Center
-  $format.LineAlignment = [System.Drawing.StringAlignment]::Center
-  $rect = New-Object -TypeName System.Drawing.RectangleF -ArgumentList 0, 0, 256, 246
-  $graphics.DrawString("T", $font, $textBrush, $rect, $format)
-  $format.Dispose()
-  $textBrush.Dispose()
-  $font.Dispose()
-  $brush.Dispose()
-  $graphics.Dispose()
-  return $bmp
-}
-
-function Save-CircularCover {
-  param([string]$SourcePath)
-  $source = Load-ImageUnlocked $SourcePath
-  if (-not $source) { return $false }
-  $dest = $null
-  $graphics = $null
-  $path = $null
+function New-BitmapImage {
+  param([string]$Path)
+  if (-not $Path -or -not (Test-Path -LiteralPath $Path)) { return $null }
+  $stream = $null
   try {
-    $size = 256
-    $dest = New-Object -TypeName System.Drawing.Bitmap -ArgumentList $size, $size
-    $graphics = [System.Drawing.Graphics]::FromImage($dest)
-    $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-    $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-    $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
-    $graphics.Clear([System.Drawing.Color]::Transparent)
-
-    $srcSize = [Math]::Min($source.Width, $source.Height)
-    $srcX = [int](($source.Width - $srcSize) / 2)
-    $srcY = [int](($source.Height - $srcSize) / 2)
-    $srcRect = New-Object -TypeName System.Drawing.Rectangle -ArgumentList $srcX, $srcY, $srcSize, $srcSize
-    $destRect = New-Object -TypeName System.Drawing.Rectangle -ArgumentList 0, 0, $size, $size
-
-    $path = New-Object System.Drawing.Drawing2D.GraphicsPath
-    $path.AddEllipse(0, 0, $size - 1, $size - 1)
-    $graphics.SetClip($path)
-    $graphics.DrawImage($source, $destRect, $srcRect, [System.Drawing.GraphicsUnit]::Pixel)
-    $graphics.ResetClip()
-
-    $dest.Save($customCoverFile, [System.Drawing.Imaging.ImageFormat]::Png)
-    return $true
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    $stream = New-Object -TypeName System.IO.MemoryStream -ArgumentList (,$bytes)
+    $bitmap = New-Object System.Windows.Media.Imaging.BitmapImage
+    $bitmap.BeginInit()
+    $bitmap.CacheOption = [System.Windows.Media.Imaging.BitmapCacheOption]::OnLoad
+    $bitmap.StreamSource = $stream
+    $bitmap.EndInit()
+    $bitmap.Freeze()
+    return $bitmap
   } catch {
-    return $false
+    return $null
   } finally {
-    if ($path) { $path.Dispose() }
-    if ($graphics) { $graphics.Dispose() }
-    if ($dest) { $dest.Dispose() }
-    if ($source) { $source.Dispose() }
+    if ($stream) { $stream.Dispose() }
   }
 }
 
 function Refresh-Cover {
-  if ($script:coverImage) {
-    $script:coverImage.Dispose()
-    $script:coverImage = $null
-  }
-  $path = Get-CoverPath
-  if ($path) { $script:coverImage = Load-ImageUnlocked $path }
-  if (-not $script:coverImage) { $script:coverImage = New-FallbackCover }
-  $script:coverStamp = Get-CoverStamp
-  if ($script:ballCanvas) { $script:ballCanvas.Invalidate() }
-}
-
-function Draw-Cover {
-  param($Graphics)
-  $Graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-  $Graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-  $Graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
-  $Graphics.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
-  $Graphics.Clear($form.BackColor)
-
-  $margin = 1
-  $size = $ballSize - ($margin * 2)
-  $rect = New-Object -TypeName System.Drawing.Rectangle -ArgumentList $margin, $margin, $size, $size
-
-  $path = New-Object System.Drawing.Drawing2D.GraphicsPath
-  $path.AddEllipse($rect)
-  $Graphics.SetClip($path)
-  if ($script:coverImage) { $Graphics.DrawImage($script:coverImage, $rect) }
-  $Graphics.ResetClip()
-
-  $path.Dispose()
-}
-
-function New-RoundedRectPath {
-  param([int]$Width, [int]$Height, [int]$Radius)
-  $d = [Math]::Max(2, $Radius * 2)
-  $path = New-Object System.Drawing.Drawing2D.GraphicsPath
-  $path.AddArc(0, 0, $d, $d, 180, 90)
-  $path.AddArc($Width - $d - 1, 0, $d, $d, 270, 90)
-  $path.AddArc($Width - $d - 1, $Height - $d - 1, $d, $d, 0, 90)
-  $path.AddArc(0, $Height - $d - 1, $d, $d, 90, 90)
-  $path.CloseFigure()
-  return $path
-}
-
-function Apply-Theme {
-  param([string]$Theme)
-  $script:theme = if ($Theme -eq "light") { "light" } else { "dark" }
-  if ($script:theme -eq "light") {
-    $script:panelBg = [System.Drawing.Color]::FromArgb(255, 255, 255)
-    $script:textColor = [System.Drawing.Color]::FromArgb(16, 24, 39)
-    $script:mutedColor = [System.Drawing.Color]::FromArgb(102, 112, 133)
-    $script:secondaryBg = [System.Drawing.Color]::FromArgb(243, 244, 248)
-    $script:accentColor = [System.Drawing.Color]::FromArgb(118, 87, 232)
-    $script:accentText = [System.Drawing.Color]::White
+  $bitmap = New-BitmapImage (Get-CoverPath)
+  if ($bitmap) {
+    $brush = New-Object System.Windows.Media.ImageBrush($bitmap)
+    $brush.Stretch = [System.Windows.Media.Stretch]::UniformToFill
+    $brush.AlignmentX = [System.Windows.Media.AlignmentX]::Center
+    $brush.AlignmentY = [System.Windows.Media.AlignmentY]::Center
+    $script:coverEllipse.Fill = $brush
+    [System.Windows.Media.RenderOptions]::SetBitmapScalingMode($script:coverEllipse, [System.Windows.Media.BitmapScalingMode]::HighQuality)
   } else {
-    $script:panelBg = [System.Drawing.Color]::FromArgb(18, 19, 22)
-    $script:textColor = [System.Drawing.Color]::FromArgb(242, 240, 234)
-    $script:mutedColor = [System.Drawing.Color]::FromArgb(157, 162, 168)
-    $script:secondaryBg = [System.Drawing.Color]::FromArgb(31, 34, 39)
-    $script:accentColor = [System.Drawing.Color]::FromArgb(48, 213, 200)
-    $script:accentText = [System.Drawing.Color]::FromArgb(6, 19, 19)
+    $script:coverEllipse.Fill = New-Brush "#30D5C8"
   }
-  if ($form) {
-    $form.BackColor = $script:panelBg
-    $form.TransparencyKey = [System.Drawing.Color]::Empty
-    $form.ForeColor = $script:textColor
-    $form.Invalidate()
-  }
-  foreach ($label in @($titleLabel, $turnLabel)) {
-    if ($label) {
-      $label.ForeColor = $script:textColor
-      $label.BackColor = $script:panelBg
-    }
-  }
-  foreach ($label in @($todayLabel, $cacheLabel, $script:statusLabel)) {
-    if ($label) {
-      $label.ForeColor = $script:mutedColor
-      $label.BackColor = $script:panelBg
-    }
-  }
-  if ($openButton) {
-    $openButton.BackColor = $script:secondaryBg
-    $openButton.ForeColor = $script:textColor
-    $openButton.FlatAppearance.BorderColor = $script:secondaryBg
-  }
-  if ($copyButton) {
-    $copyButton.BackColor = $script:accentColor
-    $copyButton.ForeColor = $script:accentText
-    $copyButton.FlatAppearance.BorderColor = $script:accentColor
-  }
-  foreach ($button in @($openButton, $copyButton)) {
-    if ($button) { Apply-ButtonShape $button }
-  }
-  if ($script:ballCanvas) {
-    $script:ballCanvas.BackColor = $script:panelBg
-    $script:ballCanvas.Invalidate()
-  }
+  $script:coverStamp = Get-CoverStamp
 }
 
-function Apply-ButtonShape {
-  param($Button)
-  if (-not $Button) { return }
-  $path = New-RoundedRectPath $Button.Width $Button.Height 8
-  $Button.Region = New-Object System.Drawing.Region($path)
-  $path.Dispose()
+function Get-ScreenDipForBall {
+  try {
+    $centerPx = $script:ballWindow.PointToScreen([System.Windows.Point]::new([double]($ballSize / 2), [double]($ballSize / 2)))
+    $screen = [System.Windows.Forms.Screen]::FromPoint((New-Object System.Drawing.Point([int]$centerPx.X, [int]$centerPx.Y)))
+    $area = $screen.WorkingArea
+    $source = [System.Windows.PresentationSource]::FromVisual($script:ballWindow)
+    if ($source -and $source.CompositionTarget) {
+      $fromDevice = $source.CompositionTarget.TransformFromDevice
+      $topLeft = $fromDevice.Transform([System.Windows.Point]::new([double]$area.Left, [double]$area.Top))
+      $bottomRight = $fromDevice.Transform([System.Windows.Point]::new([double]$area.Right, [double]$area.Bottom))
+      return [pscustomobject]@{
+        Left = $topLeft.X
+        Top = $topLeft.Y
+        Right = $bottomRight.X
+        Bottom = $bottomRight.Y
+        Width = $bottomRight.X - $topLeft.X
+        Height = $bottomRight.Y - $topLeft.Y
+      }
+    }
+  } catch {}
+  $fallback = [System.Windows.SystemParameters]::WorkArea
+  return [pscustomobject]@{ Left = $fallback.Left; Top = $fallback.Top; Right = $fallback.Right; Bottom = $fallback.Bottom; Width = $fallback.Width; Height = $fallback.Height }
 }
 
 function Save-Position {
   try {
-    $p = @{ x = $form.Location.X; y = $form.Location.Y }
-    $p | ConvertTo-Json -Compress | Set-Content -LiteralPath $posFile -Encoding UTF8
+    @{
+      x = [math]::Round($script:ballWindow.Left, 2)
+      y = [math]::Round($script:ballWindow.Top, 2)
+      dockSide = $script:dockSide
+      tucked = $script:tucked
+    } | ConvertTo-Json -Compress | Set-Content -LiteralPath $posFile -Encoding UTF8
   } catch {}
 }
 
 function Load-Position {
+  $screen = [System.Windows.SystemParameters]::WorkArea
+  $fallback = [pscustomobject]@{
+    x = $screen.Right - $ballSize - 18
+    y = $screen.Bottom - $ballSize - 90
+    dockSide = ""
+    tucked = $false
+  }
   try {
     if (Test-Path -LiteralPath $posFile) {
-      $p = Get-Content -LiteralPath $posFile -Raw | ConvertFrom-Json
-      if ($null -ne $p.x -and $null -ne $p.y) { return New-Object System.Drawing.Point([int]$p.x, [int]$p.y) }
+      $value = Get-Content -LiteralPath $posFile -Raw | ConvertFrom-Json
+      if ($null -ne $value.x -and $null -ne $value.y) {
+        return [pscustomobject]@{
+          x = [double]$value.x
+          y = [double]$value.y
+          dockSide = if ($value.dockSide -in @("left", "right")) { [string]$value.dockSide } else { "" }
+          tucked = [bool]$value.tucked
+        }
+      }
     }
   } catch {}
-  $screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
-  return New-Object System.Drawing.Point(($screen.Right - $ballSize - 18), ($screen.Bottom - $ballSize - 90))
+  return $fallback
 }
 
-function Clamp-To-Screen {
-  $screen = [System.Windows.Forms.Screen]::FromPoint($form.Location).WorkingArea
-  $x = [math]::Max($screen.Left + 4, [math]::Min($form.Left, $screen.Right - $form.Width - 4))
-  $y = [math]::Max($screen.Top + 4, [math]::Min($form.Top, $screen.Bottom - $form.Height - 4))
-  $form.Location = New-Object System.Drawing.Point([int]$x, [int]$y)
+function Clamp-BallToScreen {
+  $screen = Get-ScreenDipForBall
+  $script:ballWindow.Top = [math]::Max($screen.Top + 4, [math]::Min($script:ballWindow.Top, $screen.Bottom - $ballSize - 4))
+  if (-not $script:dockSide) {
+    $script:ballWindow.Left = [math]::Max($screen.Left + 4, [math]::Min($script:ballWindow.Left, $screen.Right - $ballSize - 4))
+  }
 }
 
-function Apply-Shape {
-  if ($script:expanded) {
-    $form.Region = $null
+function Apply-DockVisual {
+  $screen = Get-ScreenDipForBall
+  if (-not $script:dockSide) {
+    $script:tucked = $false
+    $script:dockButton.Visibility = [System.Windows.Visibility]::Collapsed
+    Clamp-BallToScreen
     return
   }
-  $path = New-Object System.Drawing.Drawing2D.GraphicsPath
-  $path.AddEllipse(0, 0, $form.Width, $form.Height)
-  $form.Region = New-Object System.Drawing.Region($path)
-  $path.Dispose()
+
+  $script:dockButton.Visibility = [System.Windows.Visibility]::Visible
+  if ($script:dockSide -eq "left") {
+    $script:dockButton.HorizontalAlignment = if ($script:tucked) { [System.Windows.HorizontalAlignment]::Right } else { [System.Windows.HorizontalAlignment]::Left }
+    $script:dockGlyph.Text = if ($script:tucked) { $txtChevronRight } else { $txtChevronLeft }
+    $script:dockButton.ToolTip = if ($script:tucked) { $txtRevealTip } else { $txtDockTip }
+    $script:ballWindow.Left = if ($script:tucked) { $screen.Left - $ballSize + $dockTabWidth } else { $screen.Left + 4 }
+  } else {
+    $script:dockButton.HorizontalAlignment = if ($script:tucked) { [System.Windows.HorizontalAlignment]::Left } else { [System.Windows.HorizontalAlignment]::Right }
+    $script:dockGlyph.Text = if ($script:tucked) { $txtChevronLeft } else { $txtChevronRight }
+    $script:dockButton.ToolTip = if ($script:tucked) { $txtRevealTip } else { $txtDockTip }
+    $script:ballWindow.Left = if ($script:tucked) { $screen.Right - $dockTabWidth } else { $screen.Right - $ballSize - 4 }
+  }
+  $script:ballWindow.Top = [math]::Max($screen.Top + 4, [math]::Min($script:ballWindow.Top, $screen.Bottom - $ballSize - 4))
 }
 
-function Set-Expanded {
-  param([bool]$Value)
-  $script:expanded = $Value
-  $form.SuspendLayout()
-  if ($Value) {
-    $form.Width = $expandedW
-    $form.Height = $expandedH
+function Apply-Theme {
+  param([string]$Theme)
+  $next = if ($Theme -eq "light") { "light" } else { "dark" }
+  if ($script:theme -eq $next -and $script:themeReady) { return }
+  $script:theme = $next
+  if ($next -eq "light") {
+    $card = "#FFFFFF"
+    $text = "#121826"
+    $muted = "#687287"
+    $secondary = "#F2F0F8"
+    $secondaryHover = "#E9E5F5"
+    $accent = "#7657E8"
+    $accentHover = "#6949DA"
+    $accentText = "#FFFFFF"
+    $border = "#E3E6EC"
+    $ring = "#FFFFFF"
   } else {
-    $form.Width = $ballSize
-    $form.Height = $ballSize
+    $card = "#121316"
+    $text = "#F4F2ED"
+    $muted = "#9DA3AC"
+    $secondary = "#202329"
+    $secondaryHover = "#2A2E35"
+    $accent = "#30D5C8"
+    $accentHover = "#50E0D5"
+    $accentText = "#071A19"
+    $border = "#30343A"
+    $ring = "#17191D"
   }
-  if ($Value) {
-    $form.BackColor = $script:panelBg
-  } else {
-    $form.BackColor = $script:panelBg
-  }
-  $script:ballCanvas.Visible = -not $Value
-  foreach ($control in @($titleLabel, $turnLabel, $todayLabel, $cacheLabel, $openButton, $copyButton, $script:statusLabel)) {
-    $control.Visible = $Value
-    $control.BringToFront()
-  }
-  $form.ResumeLayout()
-  Clamp-To-Screen
-  Apply-Shape
-  Save-Position
-}
 
-function Toggle-Expanded {
-  Set-Expanded (-not $script:expanded)
+  $script:cardBorder.Background = New-Brush $card
+  $script:cardBorder.BorderBrush = New-Brush $border
+  $script:titleText.Foreground = New-Brush $text
+  $script:turnText.Foreground = New-Brush $text
+  $script:todayText.Foreground = New-Brush $muted
+  $script:cacheText.Foreground = New-Brush $muted
+  $script:openAction.Background = New-Brush $secondary
+  $script:openText.Foreground = New-Brush $text
+  $script:copyAction.Background = New-Brush $accent
+  $script:copyText.Foreground = New-Brush $accentText
+  $script:dockButton.Background = New-Brush $card
+  $script:dockButton.BorderBrush = New-Brush $border
+  $script:dockGlyph.Foreground = New-Brush $text
+  $script:ringEllipse.Fill = New-Brush $ring
+  $script:ringEllipse.Stroke = New-Brush $border
+
+  $script:secondaryBrush = New-Brush $secondary
+  $script:secondaryHoverBrush = New-Brush $secondaryHover
+  $script:accentBrush = New-Brush $accent
+  $script:accentHoverBrush = New-Brush $accentHover
+  $script:themeReady = $true
 }
 
 function Update-DataLabels {
-  if (-not $script:lastData) { return }
+  if (-not $script:lastData) {
+    $script:turnText.Text = "--"
+    $script:todayText.Text = $txtWaiting
+    $script:cacheText.Text = ""
+    return
+  }
   $turn = 0
   if ($script:lastData.turns -and $script:lastData.turns.Count -gt 0) {
     $turn = [double]$script:lastData.turns[$script:lastData.turns.Count - 1].total
   }
   $daily = $script:lastData.daily
-  $turnLabel.Text = Format-Short $turn
-  $todayTotal = 0
-  if ($daily -and $daily.total) { $todayTotal = [double]$daily.total }
-  $todayLabel.Text = $txtToday + " " + (Format-Short $todayTotal)
+  $todayTotal = if ($daily -and $daily.total) { [double]$daily.total } else { 0 }
   $rate = "--"
-  if ($daily.input -and [double]$daily.input -gt 0) {
+  if ($daily -and $daily.input -and [double]$daily.input -gt 0) {
     $rate = ([math]::Round(([double]$daily.cached / [double]$daily.input) * 100)).ToString() + "%"
   }
-  $cacheLabel.Text = $txtCache + " " + $rate
+  $script:turnText.Text = Format-Short $turn
+  $script:todayText.Text = $txtToday + "  " + (Format-Short $todayTotal)
+  $script:cacheText.Text = $txtCache + "  " + $rate
 }
 
-$form = New-Object System.Windows.Forms.Form
-$form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
-$form.ShowInTaskbar = $false
-$form.TopMost = $true
-$form.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
-$form.BackColor = [System.Drawing.Color]::FromArgb(18, 19, 22)
-$form.ForeColor = [System.Drawing.Color]::FromArgb(242, 240, 234)
-$form.Opacity = 0.98
-$form.Width = $ballSize
-$form.Height = $ballSize
-$form.Location = Load-Position
-$form.Font = New-Object System.Drawing.Font("Microsoft YaHei UI", 9)
+function Position-Panel {
+  $screen = Get-ScreenDipForBall
+  $spaceRight = $screen.Right - ($script:ballWindow.Left + $ballSize)
+  $openRight = $script:dockSide -eq "left" -or ($script:dockSide -ne "right" -and $spaceRight -ge ($panelWidth + $panelGap))
+  if ($openRight) {
+    $script:panelWindow.Left = $script:ballWindow.Left + $ballSize + $panelGap
+    $script:panelSide = "right"
+  } else {
+    $script:panelWindow.Left = $script:ballWindow.Left - $panelWidth - $panelGap
+    $script:panelSide = "left"
+  }
+  $idealTop = $script:ballWindow.Top - (($panelHeight - $ballSize) / 2)
+  $script:panelWindow.Top = [math]::Max($screen.Top + 4, [math]::Min($idealTop, $screen.Bottom - $panelHeight - 4))
+}
 
-$script:panelBg = [System.Drawing.Color]::FromArgb(18, 19, 22)
-$script:textColor = [System.Drawing.Color]::FromArgb(242, 240, 234)
-$script:mutedColor = [System.Drawing.Color]::FromArgb(157, 162, 168)
-$script:secondaryBg = [System.Drawing.Color]::FromArgb(31, 34, 39)
-$script:accentColor = [System.Drawing.Color]::FromArgb(48, 213, 200)
-$script:accentText = [System.Drawing.Color]::FromArgb(6, 19, 19)
+function Show-Panel {
+  if ($script:tucked -or $script:dragging) { return }
+  $script:closeTimer.Stop()
+  Position-Panel
+  if ($script:panelWindow.IsVisible) { return }
+  $script:panelWindow.Opacity = 0
+  $offset = if ($script:panelSide -eq "right") { -8.0 } else { 8.0 }
+  $translate = New-Object System.Windows.Media.TranslateTransform($offset, 0)
+  $script:cardBorder.RenderTransform = $translate
+  $script:panelWindow.Show()
+  $fade = New-Object System.Windows.Media.Animation.DoubleAnimation(0, 1, (New-Object System.Windows.Duration([TimeSpan]::FromMilliseconds(130))))
+  $slide = New-Object System.Windows.Media.Animation.DoubleAnimation($offset, 0, (New-Object System.Windows.Duration([TimeSpan]::FromMilliseconds(150))))
+  $script:panelWindow.BeginAnimation([System.Windows.Window]::OpacityProperty, $fade)
+  $translate.BeginAnimation([System.Windows.Media.TranslateTransform]::XProperty, $slide)
+}
 
-$script:ballCanvas = New-Object System.Windows.Forms.Panel
-$script:ballCanvas.BackColor = $form.BackColor
-$script:ballCanvas.Dock = [System.Windows.Forms.DockStyle]::Fill
-$script:ballCanvas.Cursor = [System.Windows.Forms.Cursors]::Hand
-$script:ballCanvas.Add_Paint({ Draw-Cover $_.Graphics })
-$form.Controls.Add($script:ballCanvas)
-Refresh-Cover
+function Hide-Panel {
+  $script:closeTimer.Stop()
+  if ($script:panelWindow.IsVisible) { $script:panelWindow.Hide() }
+}
 
-$titleLabel = New-Object System.Windows.Forms.Label
-$titleLabel.Text = $txtRecent
-$titleLabel.Font = New-Object System.Drawing.Font("Microsoft YaHei UI", 9, [System.Drawing.FontStyle]::Bold)
-$titleLabel.Location = New-Object System.Drawing.Point(18, 16)
-$titleLabel.Size = New-Object System.Drawing.Size(270, 20)
-$titleLabel.Visible = $false
-$form.Controls.Add($titleLabel)
+function Schedule-PanelClose {
+  $script:closeTimer.Stop()
+  $script:closeTimer.Start()
+}
 
-$turnLabel = New-Object System.Windows.Forms.Label
-$turnLabel.Text = $txtTurn + " --"
-$turnLabel.Font = New-Object System.Drawing.Font("Segoe UI", 22, [System.Drawing.FontStyle]::Bold)
-$turnLabel.Location = New-Object System.Drawing.Point(18, 42)
-$turnLabel.Size = New-Object System.Drawing.Size(176, 42)
-$turnLabel.Visible = $false
-$form.Controls.Add($turnLabel)
+function Test-CursorInsideWindow {
+  param([System.Windows.Window]$Window)
+  if (-not $Window -or -not $Window.IsVisible) { return $false }
+  try {
+    $cursor = [System.Windows.Forms.Cursor]::Position
+    # PowerShell-hosted WPF windows normally use the same virtualized desktop
+    # coordinates as Cursor.Position. Prefer that direct check first.
+    if ($cursor.X -ge $Window.Left -and $cursor.Y -ge $Window.Top -and $cursor.X -lt ($Window.Left + $Window.ActualWidth) -and $cursor.Y -lt ($Window.Top + $Window.ActualHeight)) {
+      return $true
+    }
+    # PointFromScreen covers per-monitor DPI configurations where the two spaces differ.
+    $screenPoint = [System.Windows.Point]::new([double]$cursor.X, [double]$cursor.Y)
+    $localPoint = $Window.PointFromScreen($screenPoint)
+    return $localPoint.X -ge 0 -and $localPoint.Y -ge 0 -and $localPoint.X -lt $Window.ActualWidth -and $localPoint.Y -lt $Window.ActualHeight
+  } catch {
+    return $false
+  }
+}
 
-$todayLabel = New-Object System.Windows.Forms.Label
-$todayLabel.Text = $txtToday + " --"
-$todayLabel.ForeColor = $script:mutedColor
-$todayLabel.Location = New-Object System.Drawing.Point(20, 88)
-$todayLabel.Size = New-Object System.Drawing.Size(130, 20)
-$todayLabel.Visible = $false
-$form.Controls.Add($todayLabel)
+function Test-IsDescendantOf {
+  param($Source, $Ancestor)
+  $current = $Source -as [System.Windows.DependencyObject]
+  while ($current) {
+    if ([object]::ReferenceEquals($current, $Ancestor)) { return $true }
+    try { $current = [System.Windows.Media.VisualTreeHelper]::GetParent($current) } catch { $current = $null }
+  }
+  return $false
+}
 
-$cacheLabel = New-Object System.Windows.Forms.Label
-$cacheLabel.Text = $txtCache + " --"
-$cacheLabel.ForeColor = $script:mutedColor
-$cacheLabel.Location = New-Object System.Drawing.Point(154, 88)
-$cacheLabel.Size = New-Object System.Drawing.Size(130, 20)
-$cacheLabel.Visible = $false
-$form.Controls.Add($cacheLabel)
-
-$openButton = New-Object System.Windows.Forms.Button
-$openButton.Text = $txtOpen
-$openButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
-$openButton.FlatAppearance.BorderColor = $script:secondaryBg
-$openButton.BackColor = $script:secondaryBg
-$openButton.ForeColor = [System.Drawing.Color]::White
-$openButton.Location = New-Object System.Drawing.Point(20, 120)
-$openButton.Size = New-Object System.Drawing.Size(126, 34)
-$openButton.Visible = $false
-$openButton.Add_Click({ Open-Dashboard })
-$form.Controls.Add($openButton)
-
-$copyButton = New-Object System.Windows.Forms.Button
-$copyButton.Text = $txtCopy
-$copyButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
-$copyButton.FlatAppearance.BorderColor = $script:accentColor
-$copyButton.BackColor = $script:accentColor
-$copyButton.ForeColor = $script:accentText
-$copyButton.Location = New-Object System.Drawing.Point(156, 120)
-$copyButton.Size = New-Object System.Drawing.Size(126, 34)
-$copyButton.Visible = $false
-$copyButton.Add_Click({ Copy-Pack })
-$form.Controls.Add($copyButton)
-
-$script:statusLabel = New-Object System.Windows.Forms.Label
-$script:statusLabel.Text = $txtNoPlugin
-$script:statusLabel.ForeColor = $script:mutedColor
-$script:statusLabel.Location = New-Object System.Drawing.Point(21, 156)
-$script:statusLabel.Size = New-Object System.Drawing.Size(260, 18)
-$script:statusLabel.Visible = $false
-$form.Controls.Add($script:statusLabel)
-
-function Begin-Drag {
+function Begin-BallDrag {
   param($Sender, $Event)
-  if ($Event.Button -ne [System.Windows.Forms.MouseButtons]::Left) { return }
+  if ($Event.ChangedButton -ne [System.Windows.Input.MouseButton]::Left) { return }
+  if (Test-IsDescendantOf $Event.OriginalSource $script:dockButton) { return }
+  if ($script:tucked) { return }
+  Hide-Panel
   $script:dragging = $true
-  $script:moved = $false
-  $script:mouseDown = [System.Windows.Forms.Cursor]::Position
-  $script:formStart = $form.Location
-}
-
-function Move-Drag {
-  param($Sender, $Event)
-  if (-not $script:dragging) { return }
-  $pos = [System.Windows.Forms.Cursor]::Position
-  $dx = $pos.X - $script:mouseDown.X
-  $dy = $pos.Y - $script:mouseDown.Y
-  if ([math]::Abs($dx) + [math]::Abs($dy) -gt 3) { $script:moved = $true }
-  $form.Location = New-Object System.Drawing.Point(($script:formStart.X + $dx), ($script:formStart.Y + $dy))
-  Clamp-To-Screen
-}
-
-function End-Drag {
-  param($Sender, $Event)
-  if (-not $script:dragging) { return }
+  $startLeft = $script:ballWindow.Left
+  $startTop = $script:ballWindow.Top
+  $script:dockSide = ""
+  $script:tucked = $false
+  $script:dockButton.Visibility = [System.Windows.Visibility]::Collapsed
+  try { $script:ballWindow.DragMove() } catch {}
   $script:dragging = $false
+  $script:moved = ([math]::Abs($script:ballWindow.Left - $startLeft) + [math]::Abs($script:ballWindow.Top - $startTop)) -gt 3
+  if ($script:moved) {
+    $screen = Get-ScreenDipForBall
+    $leftDistance = [math]::Abs($script:ballWindow.Left - $screen.Left)
+    $rightDistance = [math]::Abs(($script:ballWindow.Left + $ballSize) - $screen.Right)
+    if ([math]::Min($leftDistance, $rightDistance) -le $dockThreshold) {
+      $script:dockSide = if ($leftDistance -le $rightDistance) { "left" } else { "right" }
+      $script:tucked = $false
+      Apply-DockVisual
+    } else {
+      Clamp-BallToScreen
+    }
+    Save-Position
+  } else {
+    Show-Panel
+  }
+  $Event.Handled = $true
+}
+
+function Toggle-Tucked {
+  param($Event)
+  if (-not $script:dockSide) { return }
+  Hide-Panel
+  $script:tucked = -not $script:tucked
+  Apply-DockVisual
   Save-Position
-  if (-not $script:moved -and -not ($Sender -is [System.Windows.Forms.Button])) { Toggle-Expanded }
+  if ($Event) { $Event.Handled = $true }
 }
 
-foreach ($control in @($form, $script:ballCanvas, $titleLabel, $turnLabel, $todayLabel, $cacheLabel, $script:statusLabel)) {
-  $control.Add_MouseDown({ Begin-Drag $this $_ })
-  $control.Add_MouseMove({ Move-Drag $this $_ })
-  $control.Add_MouseUp({ End-Drag $this $_ })
+# Floating ball window: WPF transparency keeps the circular edge anti-aliased.
+$script:ballWindow = New-Object System.Windows.Window
+$script:ballWindow.Width = $ballSize
+$script:ballWindow.Height = $ballSize
+$script:ballWindow.WindowStyle = [System.Windows.WindowStyle]::None
+$script:ballWindow.ResizeMode = [System.Windows.ResizeMode]::NoResize
+$script:ballWindow.AllowsTransparency = $true
+$script:ballWindow.Background = [System.Windows.Media.Brushes]::Transparent
+$script:ballWindow.ShowInTaskbar = $false
+$script:ballWindow.Topmost = $true
+$script:ballWindow.ShowActivated = $false
+$script:ballWindow.SizeToContent = [System.Windows.SizeToContent]::Manual
+$script:ballWindow.UseLayoutRounding = $true
+$script:ballWindow.SnapsToDevicePixels = $true
+
+$script:ballRoot = New-Object System.Windows.Controls.Grid
+$script:ballRoot.Background = [System.Windows.Media.Brushes]::Transparent
+$script:ballRoot.Cursor = [System.Windows.Input.Cursors]::Hand
+$script:ballRoot.UseLayoutRounding = $true
+$ballClip = New-Object System.Windows.Media.EllipseGeometry
+$ballClip.Center = [System.Windows.Point]::new([double]($ballSize / 2), [double]($ballSize / 2))
+$ballClip.RadiusX = $ballSize / 2
+$ballClip.RadiusY = $ballSize / 2
+$script:ballRoot.Clip = $ballClip
+$script:ballWindow.Content = $script:ballRoot
+
+$script:ringEllipse = New-Object System.Windows.Shapes.Ellipse
+$script:ringEllipse.Width = 68
+$script:ringEllipse.Height = 68
+$script:ringEllipse.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
+$script:ringEllipse.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+$script:ringEllipse.StrokeThickness = 1
+$shadow = New-Object System.Windows.Media.Effects.DropShadowEffect
+$shadow.BlurRadius = 14
+$shadow.ShadowDepth = 2
+$shadow.Opacity = 0.26
+$shadow.Color = [System.Windows.Media.Colors]::Black
+$script:ringEllipse.Effect = $shadow
+$script:ballRoot.Children.Add($script:ringEllipse) | Out-Null
+
+$script:coverEllipse = New-Object System.Windows.Shapes.Ellipse
+$script:coverEllipse.Width = $ballDiameter
+$script:coverEllipse.Height = $ballDiameter
+$script:coverEllipse.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
+$script:coverEllipse.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+$script:coverEllipse.Stroke = New-Brush "#66FFFFFF"
+$script:coverEllipse.StrokeThickness = 1
+$script:ballRoot.Children.Add($script:coverEllipse) | Out-Null
+
+$script:dockButton = New-Object System.Windows.Controls.Border
+$script:dockButton.Width = $dockTabWidth
+$script:dockButton.Height = 36
+$script:dockButton.CornerRadius = New-CornerRadius 14
+$script:dockButton.BorderThickness = New-Thickness 1
+$script:dockButton.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+$script:dockButton.Visibility = [System.Windows.Visibility]::Collapsed
+$script:dockButton.Cursor = [System.Windows.Input.Cursors]::Hand
+$script:dockButton.Opacity = 0.98
+$script:dockGlyph = New-Object System.Windows.Controls.TextBlock
+$script:dockGlyph.Text = $txtChevronLeft
+$script:dockGlyph.FontFamily = New-Object System.Windows.Media.FontFamily("Segoe UI Symbol")
+$script:dockGlyph.FontSize = 22
+$script:dockGlyph.FontWeight = [System.Windows.FontWeights]::SemiBold
+$script:dockGlyph.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
+$script:dockGlyph.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+$script:dockButton.Child = $script:dockGlyph
+$script:ballRoot.Children.Add($script:dockButton) | Out-Null
+[System.Windows.Controls.Panel]::SetZIndex($script:dockButton, 20)
+
+# Independent companion panel. Hovering the ball reveals it without replacing the ball.
+$script:panelWindow = New-Object System.Windows.Window
+$script:panelWindow.Width = $panelWidth
+$script:panelWindow.Height = $panelHeight
+$script:panelWindow.WindowStyle = [System.Windows.WindowStyle]::None
+$script:panelWindow.ResizeMode = [System.Windows.ResizeMode]::NoResize
+$script:panelWindow.AllowsTransparency = $true
+$script:panelWindow.Background = [System.Windows.Media.Brushes]::Transparent
+$script:panelWindow.ShowInTaskbar = $false
+$script:panelWindow.Topmost = $true
+$script:panelWindow.ShowActivated = $false
+
+$script:panelRoot = New-Object System.Windows.Controls.Grid
+$script:panelRoot.Background = [System.Windows.Media.Brushes]::Transparent
+$script:panelWindow.Content = $script:panelRoot
+
+$script:cardBorder = New-Object System.Windows.Controls.Border
+$script:cardBorder.Margin = New-Thickness 10
+$script:cardBorder.CornerRadius = New-CornerRadius 22
+$script:cardBorder.BorderThickness = New-Thickness 1
+$cardShadow = New-Object System.Windows.Media.Effects.DropShadowEffect
+$cardShadow.BlurRadius = 22
+$cardShadow.ShadowDepth = 4
+$cardShadow.Opacity = 0.20
+$cardShadow.Color = [System.Windows.Media.Colors]::Black
+$script:cardBorder.Effect = $cardShadow
+$script:panelRoot.Children.Add($script:cardBorder) | Out-Null
+
+$cardGrid = New-Object System.Windows.Controls.Grid
+$cardGrid.Margin = New-Thickness 18 14 18 16
+$script:cardBorder.Child = $cardGrid
+foreach ($height in @(22, 46, 28, 42)) {
+  $row = New-Object System.Windows.Controls.RowDefinition
+  $row.Height = New-Object System.Windows.GridLength($height)
+  $cardGrid.RowDefinitions.Add($row)
 }
 
-Apply-Theme $script:theme
+$script:titleText = New-Object System.Windows.Controls.TextBlock
+$script:titleText.Text = $txtRecent
+$script:titleText.FontFamily = New-Object System.Windows.Media.FontFamily("Microsoft YaHei UI")
+$script:titleText.FontSize = 13
+$script:titleText.FontWeight = [System.Windows.FontWeights]::SemiBold
+[System.Windows.Controls.Grid]::SetRow($script:titleText, 0)
+$cardGrid.Children.Add($script:titleText) | Out-Null
 
-$dataTimer = New-Object System.Windows.Forms.Timer
-$dataTimer.Interval = 1000
+$script:turnText = New-Object System.Windows.Controls.TextBlock
+$script:turnText.Text = "--"
+$script:turnText.FontFamily = New-Object System.Windows.Media.FontFamily("Segoe UI")
+$script:turnText.FontSize = 30
+$script:turnText.FontWeight = [System.Windows.FontWeights]::Bold
+$script:turnText.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+[System.Windows.Controls.Grid]::SetRow($script:turnText, 1)
+$cardGrid.Children.Add($script:turnText) | Out-Null
+
+$metaGrid = New-Object System.Windows.Controls.Grid
+$metaGrid.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition))
+$metaGrid.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition))
+[System.Windows.Controls.Grid]::SetRow($metaGrid, 2)
+$cardGrid.Children.Add($metaGrid) | Out-Null
+
+$script:todayText = New-Object System.Windows.Controls.TextBlock
+$script:todayText.FontFamily = New-Object System.Windows.Media.FontFamily("Microsoft YaHei UI")
+$script:todayText.FontSize = 12
+$script:todayText.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+[System.Windows.Controls.Grid]::SetColumn($script:todayText, 0)
+$metaGrid.Children.Add($script:todayText) | Out-Null
+
+$script:cacheText = New-Object System.Windows.Controls.TextBlock
+$script:cacheText.FontFamily = New-Object System.Windows.Media.FontFamily("Microsoft YaHei UI")
+$script:cacheText.FontSize = 12
+$script:cacheText.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+$script:cacheText.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Right
+[System.Windows.Controls.Grid]::SetColumn($script:cacheText, 1)
+$metaGrid.Children.Add($script:cacheText) | Out-Null
+
+$actionGrid = New-Object System.Windows.Controls.Grid
+$actionGrid.Margin = New-Thickness 0 6 0 0
+$actionGrid.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition))
+$gapColumn = New-Object System.Windows.Controls.ColumnDefinition
+$gapColumn.Width = New-Object System.Windows.GridLength(10)
+$actionGrid.ColumnDefinitions.Add($gapColumn)
+$actionGrid.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition))
+[System.Windows.Controls.Grid]::SetRow($actionGrid, 3)
+$cardGrid.Children.Add($actionGrid) | Out-Null
+
+$script:openAction = New-Object System.Windows.Controls.Border
+$script:openAction.CornerRadius = New-CornerRadius 11
+$script:openAction.Cursor = [System.Windows.Input.Cursors]::Hand
+[System.Windows.Controls.Grid]::SetColumn($script:openAction, 0)
+$script:openText = New-Object System.Windows.Controls.TextBlock
+$script:openText.Text = $txtOpen
+$script:openText.FontFamily = New-Object System.Windows.Media.FontFamily("Microsoft YaHei UI")
+$script:openText.FontSize = 13
+$script:openText.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
+$script:openText.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+$script:openAction.Child = $script:openText
+$actionGrid.Children.Add($script:openAction) | Out-Null
+
+$script:copyAction = New-Object System.Windows.Controls.Border
+$script:copyAction.CornerRadius = New-CornerRadius 11
+$script:copyAction.Cursor = [System.Windows.Input.Cursors]::Hand
+[System.Windows.Controls.Grid]::SetColumn($script:copyAction, 2)
+$script:copyText = New-Object System.Windows.Controls.TextBlock
+$script:copyText.Text = $txtCopy
+$script:copyText.FontFamily = New-Object System.Windows.Media.FontFamily("Microsoft YaHei UI")
+$script:copyText.FontSize = 13
+$script:copyText.FontWeight = [System.Windows.FontWeights]::SemiBold
+$script:copyText.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
+$script:copyText.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+$script:copyAction.Child = $script:copyText
+$actionGrid.Children.Add($script:copyAction) | Out-Null
+
+$script:closeTimer = New-Object System.Windows.Threading.DispatcherTimer
+$script:closeTimer.Interval = [TimeSpan]::FromMilliseconds(240)
+$script:closeTimer.Add_Tick({
+  $script:closeTimer.Stop()
+  if (-not $script:ballRoot.IsMouseOver -and -not $script:panelRoot.IsMouseOver) { Hide-Panel }
+})
+
+$script:copyFeedbackTimer = New-Object System.Windows.Threading.DispatcherTimer
+$script:copyFeedbackTimer.Interval = [TimeSpan]::FromMilliseconds(1100)
+$script:copyFeedbackTimer.Add_Tick({
+  $script:copyFeedbackTimer.Stop()
+  $script:copyText.Text = $txtCopy
+})
+
+# Transparent windows can occasionally miss MouseLeave during a rapid cross-window
+# move. This low-cost hit test keeps the ball/panel pair stable without resizing either.
+$script:hoverTimer = New-Object System.Windows.Threading.DispatcherTimer
+$script:hoverTimer.Interval = [TimeSpan]::FromMilliseconds(100)
+$script:hoverTimer.Add_Tick({
+  if ($script:tucked -or $script:dragging) {
+    if ($script:panelWindow.IsVisible) { Hide-Panel }
+    return
+  }
+  $insideBall = Test-CursorInsideWindow $script:ballWindow
+  $insidePanel = Test-CursorInsideWindow $script:panelWindow
+  if ($insideBall -or $insidePanel) {
+    $script:closeTimer.Stop()
+    if ($insideBall -and -not $script:panelWindow.IsVisible) { Show-Panel }
+  } elseif ($script:panelWindow.IsVisible -and -not $script:closeTimer.IsEnabled) {
+    Schedule-PanelClose
+  }
+})
+
+$script:ballRoot.Add_MouseEnter({ if (-not $script:tucked) { Show-Panel } })
+$script:ballRoot.Add_MouseLeave({ Schedule-PanelClose })
+$script:panelRoot.Add_MouseEnter({ $script:closeTimer.Stop() })
+$script:panelRoot.Add_MouseLeave({ Schedule-PanelClose })
+$script:ballRoot.Add_MouseLeftButtonDown({ Begin-BallDrag $this $_ })
+$script:dockButton.Add_MouseLeftButtonUp({ Toggle-Tucked $_ })
+$script:openAction.Add_MouseLeftButtonUp({ Open-Dashboard })
+$script:copyAction.Add_MouseLeftButtonUp({ Copy-Pack })
+$script:openAction.Add_MouseEnter({ $script:openAction.Background = $script:secondaryHoverBrush })
+$script:openAction.Add_MouseLeave({ $script:openAction.Background = $script:secondaryBrush })
+$script:copyAction.Add_MouseEnter({ $script:copyAction.Background = $script:accentHoverBrush })
+$script:copyAction.Add_MouseLeave({ $script:copyAction.Background = $script:accentBrush })
+
+$dataTimer = New-Object System.Windows.Threading.DispatcherTimer
+$dataTimer.Interval = [TimeSpan]::FromSeconds(1.5)
 $dataTimer.Add_Tick({
   if ((Get-CoverStamp) -ne $script:coverStamp) { Refresh-Cover }
   $data = Get-State
@@ -513,12 +669,33 @@ $dataTimer.Add_Tick({
     $script:lastData = $data
     Apply-Theme $data.theme
     Update-DataLabels
-    $script:statusLabel.Text = $txtSummary
-  } else {
-    $script:statusLabel.Text = $txtWaiting
   }
 })
-$dataTimer.Start()
 
-Apply-Shape
-[System.Windows.Forms.Application]::Run($form)
+$saved = Load-Position
+$script:ballWindow.Left = $saved.x
+$script:ballWindow.Top = $saved.y
+$script:dockSide = $saved.dockSide
+$script:tucked = $saved.tucked -and [bool]$script:dockSide
+$script:themeReady = $false
+Apply-Theme $script:theme
+Refresh-Cover
+Update-DataLabels
+
+$app = New-Object System.Windows.Application
+$app.ShutdownMode = [System.Windows.ShutdownMode]::OnExplicitShutdown
+$script:ballWindow.Add_Closed({
+  $dataTimer.Stop()
+  $script:closeTimer.Stop()
+  $script:copyFeedbackTimer.Stop()
+  $script:hoverTimer.Stop()
+  if ($script:panelWindow.IsVisible) { $script:panelWindow.Close() }
+  $app.Shutdown()
+})
+
+$script:ballWindow.Show()
+Apply-DockVisual
+Save-Position
+$dataTimer.Start()
+$script:hoverTimer.Start()
+$null = $app.Run()
