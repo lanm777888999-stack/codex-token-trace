@@ -19,7 +19,7 @@ Token Trace 是 Codex / ChatGPT Windows 桌面版的本机 Token 分析伴生工
 ## 当前状态
 
 - 分支：`codex/token-trace-dashboard`
-- 工作树：v1.1.0 功能与文档已准备同步至 `public/main`。
+- 工作树：v1.1.0 功能与文档已同步至 `public/main`，GitHub Release 与便携包已发布。
 - 运行状态：本机服务、浏览器界面、阶段对比 API 和悬浮窗均可运行；尚未在干净 Windows 用户环境执行 v1.1.0 真实安装。
 
 ## 启动与测试
