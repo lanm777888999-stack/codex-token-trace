@@ -6,7 +6,7 @@
 
 ## 一句话说明
 
-Token Trace 是 Codex / ChatGPT Windows 桌面版的本机 Token 分析伴生工具：圆形悬浮入口配合浏览器统计页，不依赖 Codex++；当前准备发布 `v1.1.1` 边缘收纳修复。
+Token Trace 是 Codex / ChatGPT Windows 桌面版的本机 Token 分析伴生工具：圆形悬浮入口配合浏览器统计页，不依赖 Codex++；`v1.1.1` 边缘收纳修复已公开发布。
 
 ## 本次完成
 
@@ -18,7 +18,7 @@ Token Trace 是 Codex / ChatGPT Windows 桌面版的本机 Token 分析伴生工
 ## 当前状态
 
 - 分支：`codex/floating-edge-tab`
-- 工作树：`v1.1.1` 源码与文档准备发布到 `origin/main`。
+- 工作树：`v1.1.1` 源码、文档、Release 便携包和 SHA-256 文件已同步；本地无未提交产品代码。
 - 运行状态：本机服务与悬浮窗可运行；实际桌面截图已确认收纳后只有边缘箭头、没有黑猫球残留。
 
 ## 启动与测试
