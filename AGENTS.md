@@ -11,7 +11,7 @@
 
 - `token-stats.mjs`：核心统计、本机 HTTP API 和浏览器页面服务。
 - `dashboard.html`：大型统计界面，以统一左侧栏组织今日累计、任务占比、阶段使用对比、Token 构成、模型消费对比和数据包复制。
-- `floating-panel.ps1`：Windows 无边框圆形悬浮入口，可自由拖动并记住位置，悬停展开侧边卡片，拖到左右边缘后可通过箭头收纳/恢复；默认使用 `assets/token_black_cat.png`，并支持用户上传圆形自定义封面。
+- `floating-panel.ps1`：Windows 无边框圆形悬浮入口，可自由拖动并记住位置，悬停展开侧边卡片；拖到左右边缘后可收纳成独立箭头标签，标签可沿边缘拖动，点击恢复完整悬浮球；默认使用 `assets/token_black_cat.png`，并支持用户上传圆形自定义封面。
 - `start-token-trace.ps1`：手动启动本机服务和悬浮入口。
 - `guardian.ps1`：WMI 事件守护进程；订阅 Codex / ChatGPT 进程启停事件，不使用定时轮询。
 - `install-autostart.ps1` / `uninstall-autostart.ps1`：守护模式安装/卸载。

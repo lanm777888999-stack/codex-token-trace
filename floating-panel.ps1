@@ -49,6 +49,8 @@ $txtChevronRight = T @(0x203A)
 $ballSize = 72.0
 $ballDiameter = 62.0
 $dockTabWidth = 30.0
+$dockHandleWidth = 36.0
+$dockHandleHeight = 52.0
 $panelWidth = 332.0
 $panelHeight = 194.0
 $panelGap = 10.0
@@ -157,7 +159,9 @@ function Refresh-Cover {
 
 function Get-ScreenDipForBall {
   try {
-    $centerPx = $script:ballWindow.PointToScreen([System.Windows.Point]::new([double]($ballSize / 2), [double]($ballSize / 2)))
+    $windowWidth = if ($script:ballWindow.ActualWidth -gt 0) { $script:ballWindow.ActualWidth } else { $script:ballWindow.Width }
+    $windowHeight = if ($script:ballWindow.ActualHeight -gt 0) { $script:ballWindow.ActualHeight } else { $script:ballWindow.Height }
+    $centerPx = $script:ballWindow.PointToScreen([System.Windows.Point]::new([double]($windowWidth / 2), [double]($windowHeight / 2)))
     $screen = [System.Windows.Forms.Screen]::FromPoint((New-Object System.Drawing.Point([int]$centerPx.X, [int]$centerPx.Y)))
     $area = $screen.WorkingArea
     $source = [System.Windows.PresentationSource]::FromVisual($script:ballWindow)
@@ -226,22 +230,60 @@ function Apply-DockVisual {
   $screen = Get-ScreenDipForBall
   if (-not $script:dockSide) {
     $script:tucked = $false
+    $script:ballWindow.Width = $ballSize
+    $script:ballWindow.Height = $ballSize
+    $script:ballRoot.Clip = $script:ballClip
+    $script:ringEllipse.Visibility = [System.Windows.Visibility]::Visible
+    $script:coverEllipse.Visibility = [System.Windows.Visibility]::Visible
     $script:dockButton.Visibility = [System.Windows.Visibility]::Collapsed
     Clamp-BallToScreen
     return
   }
 
   $script:dockButton.Visibility = [System.Windows.Visibility]::Visible
+  if ($script:tucked) {
+    Hide-Panel
+    $script:ballWindow.Width = $dockHandleWidth
+    $script:ballWindow.Height = $dockHandleHeight
+    $script:ballRoot.Clip = $null
+    $script:ringEllipse.Visibility = [System.Windows.Visibility]::Collapsed
+    $script:coverEllipse.Visibility = [System.Windows.Visibility]::Collapsed
+    $script:dockButton.Width = $dockHandleWidth
+    $script:dockButton.Height = $dockHandleHeight
+    $script:dockButton.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Stretch
+    $script:dockButton.VerticalAlignment = [System.Windows.VerticalAlignment]::Stretch
+    $script:dockButton.ToolTip = $txtRevealTip
+    if ($script:dockSide -eq "left") {
+      $script:dockButton.CornerRadius = [System.Windows.CornerRadius]::new(0, 18, 18, 0)
+      $script:dockGlyph.Text = $txtChevronRight
+      $script:ballWindow.Left = $screen.Left
+    } else {
+      $script:dockButton.CornerRadius = [System.Windows.CornerRadius]::new(18, 0, 0, 18)
+      $script:dockGlyph.Text = $txtChevronLeft
+      $script:ballWindow.Left = $screen.Right - $dockHandleWidth
+    }
+    $script:ballWindow.Top = [math]::Max($screen.Top + 4, [math]::Min($script:ballWindow.Top, $screen.Bottom - $dockHandleHeight - 4))
+    return
+  }
+
+  $script:ballWindow.Width = $ballSize
+  $script:ballWindow.Height = $ballSize
+  $script:ballRoot.Clip = $script:ballClip
+  $script:ringEllipse.Visibility = [System.Windows.Visibility]::Visible
+  $script:coverEllipse.Visibility = [System.Windows.Visibility]::Visible
+  $script:dockButton.Width = $dockTabWidth
+  $script:dockButton.Height = 36
+  $script:dockButton.CornerRadius = New-CornerRadius 14
+  $script:dockButton.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+  $script:dockButton.ToolTip = $txtDockTip
   if ($script:dockSide -eq "left") {
-    $script:dockButton.HorizontalAlignment = if ($script:tucked) { [System.Windows.HorizontalAlignment]::Right } else { [System.Windows.HorizontalAlignment]::Left }
-    $script:dockGlyph.Text = if ($script:tucked) { $txtChevronRight } else { $txtChevronLeft }
-    $script:dockButton.ToolTip = if ($script:tucked) { $txtRevealTip } else { $txtDockTip }
-    $script:ballWindow.Left = if ($script:tucked) { $screen.Left - $ballSize + $dockTabWidth } else { $screen.Left + 4 }
+    $script:dockButton.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Left
+    $script:dockGlyph.Text = $txtChevronLeft
+    $script:ballWindow.Left = $screen.Left + 4
   } else {
-    $script:dockButton.HorizontalAlignment = if ($script:tucked) { [System.Windows.HorizontalAlignment]::Left } else { [System.Windows.HorizontalAlignment]::Right }
-    $script:dockGlyph.Text = if ($script:tucked) { $txtChevronLeft } else { $txtChevronRight }
-    $script:dockButton.ToolTip = if ($script:tucked) { $txtRevealTip } else { $txtDockTip }
-    $script:ballWindow.Left = if ($script:tucked) { $screen.Right - $dockTabWidth } else { $screen.Right - $ballSize - 4 }
+    $script:dockButton.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Right
+    $script:dockGlyph.Text = $txtChevronRight
+    $script:ballWindow.Left = $screen.Right - $ballSize - 4
   }
   $script:ballWindow.Top = [math]::Max($screen.Top + 4, [math]::Min($script:ballWindow.Top, $screen.Bottom - $ballSize - 4))
 }
@@ -423,14 +465,43 @@ function Begin-BallDrag {
   $Event.Handled = $true
 }
 
-function Toggle-Tucked {
+function Begin-DockHandleAction {
   param($Event)
-  if (-not $script:dockSide) { return }
+  if ($Event.ChangedButton -ne [System.Windows.Input.MouseButton]::Left -or -not $script:dockSide) { return }
+  $Event.Handled = $true
   Hide-Panel
-  $script:tucked = -not $script:tucked
+
+  # On the full ball the edge arrow is a simple tuck action.
+  if (-not $script:tucked) {
+    $script:tucked = $true
+    Apply-DockVisual
+    Save-Position
+    return
+  }
+
+  # In tucked mode the handle itself can be dragged. Native WPF dragging keeps
+  # the handle under the pointer on mixed-DPI and multi-monitor desktops.
+  $startLeft = $script:ballWindow.Left
+  $startTop = $script:ballWindow.Top
+  $script:dragging = $true
+  try { $script:ballWindow.DragMove() } catch {}
+  $script:dragging = $false
+  $moved = ([math]::Abs($script:ballWindow.Left - $startLeft) + [math]::Abs($script:ballWindow.Top - $startTop)) -gt 3
+
+  if ($moved) {
+    $screen = Get-ScreenDipForBall
+    $handleCenter = $script:ballWindow.Left + ($dockHandleWidth / 2)
+    $script:dockSide = if ($handleCenter -le ($screen.Left + ($screen.Width / 2))) { "left" } else { "right" }
+    $script:ballWindow.Top = [math]::Max($screen.Top + 4, [math]::Min($script:ballWindow.Top, $screen.Bottom - $dockHandleHeight - 4))
+    Apply-DockVisual
+    Save-Position
+    return
+  }
+
+  # A click restores the full ball but deliberately does not open the card.
+  $script:tucked = $false
   Apply-DockVisual
   Save-Position
-  if ($Event) { $Event.Handled = $true }
 }
 
 # Floating ball window: WPF transparency keeps the circular edge anti-aliased.
@@ -452,11 +523,11 @@ $script:ballRoot = New-Object System.Windows.Controls.Grid
 $script:ballRoot.Background = [System.Windows.Media.Brushes]::Transparent
 $script:ballRoot.Cursor = [System.Windows.Input.Cursors]::Hand
 $script:ballRoot.UseLayoutRounding = $true
-$ballClip = New-Object System.Windows.Media.EllipseGeometry
-$ballClip.Center = [System.Windows.Point]::new([double]($ballSize / 2), [double]($ballSize / 2))
-$ballClip.RadiusX = $ballSize / 2
-$ballClip.RadiusY = $ballSize / 2
-$script:ballRoot.Clip = $ballClip
+$script:ballClip = New-Object System.Windows.Media.EllipseGeometry
+$script:ballClip.Center = [System.Windows.Point]::new([double]($ballSize / 2), [double]($ballSize / 2))
+$script:ballClip.RadiusX = $ballSize / 2
+$script:ballClip.RadiusY = $ballSize / 2
+$script:ballRoot.Clip = $script:ballClip
 $script:ballWindow.Content = $script:ballRoot
 
 $script:ringEllipse = New-Object System.Windows.Shapes.Ellipse
@@ -652,7 +723,7 @@ $script:ballRoot.Add_MouseLeave({ Schedule-PanelClose })
 $script:panelRoot.Add_MouseEnter({ $script:closeTimer.Stop() })
 $script:panelRoot.Add_MouseLeave({ Schedule-PanelClose })
 $script:ballRoot.Add_MouseLeftButtonDown({ Begin-BallDrag $this $_ })
-$script:dockButton.Add_MouseLeftButtonUp({ Toggle-Tucked $_ })
+$script:dockButton.Add_MouseLeftButtonDown({ Begin-DockHandleAction $_ })
 $script:openAction.Add_MouseLeftButtonUp({ Open-Dashboard })
 $script:copyAction.Add_MouseLeftButtonUp({ Copy-Pack })
 $script:openAction.Add_MouseEnter({ $script:openAction.Background = $script:secondaryHoverBrush })

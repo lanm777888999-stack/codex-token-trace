@@ -2,7 +2,7 @@
 
 [CmdletBinding()]
 param(
-  [string]$ReleaseVersion = "v1.1.0",
+  [string]$ReleaseVersion = "v1.1.1",
   [string]$OutputDir = ""
 )
 

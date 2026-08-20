@@ -22,10 +22,10 @@ Codex++ 不是前提。不要要求用户安装 Codex++。
 ## 1.1 面向普通用户的一键安装
 
 ```powershell
-$v='v1.1.0'; $p=Join-Path $env:TEMP 'Install-TokenTrace.ps1'; try { Invoke-WebRequest "https://cdn.jsdelivr.net/gh/lanm777888999-stack/codex-token-trace@$v/Install-TokenTrace.ps1" -OutFile $p -ErrorAction Stop } catch { Invoke-WebRequest "https://raw.githubusercontent.com/lanm777888999-stack/codex-token-trace/$v/Install-TokenTrace.ps1" -OutFile $p -ErrorAction Stop }; powershell -NoProfile -ExecutionPolicy Bypass -File $p
+$v='v1.1.1'; $p=Join-Path $env:TEMP 'Install-TokenTrace.ps1'; try { Invoke-WebRequest "https://cdn.jsdelivr.net/gh/lanm777888999-stack/codex-token-trace@$v/Install-TokenTrace.ps1" -OutFile $p -ErrorAction Stop } catch { Invoke-WebRequest "https://raw.githubusercontent.com/lanm777888999-stack/codex-token-trace/$v/Install-TokenTrace.ps1" -OutFile $p -ErrorAction Stop }; powershell -NoProfile -ExecutionPolicy Bypass -File $p
 ```
 
-安装器固定使用发布标签 `v1.1.0`，优先 jsDelivr、失败时回退 GitHub Raw；不调用 GitHub API，不需要 GitHub 登录、Token 或 `gh`。没有 Node.js 22+ 时才下载官方 Node 运行时。另提供便携 ZIP 给希望解压后双击使用的用户。
+安装器固定使用发布标签 `v1.1.1`，优先 jsDelivr、失败时回退 GitHub Raw；不调用 GitHub API，不需要 GitHub 登录、Token 或 `gh`。没有 Node.js 22+ 时才下载官方 Node 运行时。另提供便携 ZIP 给希望解压后双击使用的用户。
 
 ## 2. 手动启动
 
@@ -38,7 +38,7 @@ powershell -ExecutionPolicy Bypass -File .\start-token-trace.ps1
 这会启动：
 
 - 本机服务：`http://127.0.0.1:8766`
-- 独立 Windows 悬浮窗：可自由拖动并记住位置，悬停展开侧边卡片；拖到左右边缘后可通过箭头收纳/恢复；默认黑猫 Token logo，可在浏览器面板里上传圆形自定义封面
+- 独立 Windows 悬浮窗：可自由拖动并记住位置，悬停展开侧边卡片；拖到左右边缘后可收纳成独立箭头标签，标签可沿边缘拖动，点击恢复完整悬浮球；默认黑猫 Token logo，可在浏览器面板里上传圆形自定义封面
 
 如果只想启动浏览器面板/API：
 
@@ -88,7 +88,7 @@ Invoke-RestMethod 'http://127.0.0.1:8766/api/comparison?period=7'
 | 现象 | 处理 |
 |---|---|
 | 浏览器打不开 `127.0.0.1:8766` | 确认 `token-stats.mjs --server` 或 `start-token-trace.ps1` 正在运行 |
-| 悬浮窗不出现 | 先启动 Codex 桌面版；确认本机服务正在运行；悬浮球可能已收纳在屏幕左右边缘，可点击箭头恢复 |
+| 悬浮窗不出现 | 先启动 Codex 桌面版；确认本机服务正在运行；悬浮球可能已完全收纳，只在屏幕左右边缘保留箭头标签，可点击箭头恢复 |
 | 想手动启动 | 使用 `start-token-trace.ps1` |
 | 悬浮窗显示等待服务 | 检查 `%LOCALAPPDATA%\ccm-token-spend\server.log` |
 | 想换悬浮球封面 | 打开浏览器大型面板后点击「悬浮封面」，图片会自动居中裁切为圆形并保存到本机 |

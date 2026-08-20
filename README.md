@@ -18,7 +18,7 @@
 | 任务占比排行 | 按 Codex 对话归类并排序；任务标题会自动压缩，避免超长对话名挤坏界面。 |
 | 阶段使用对比 | 今日对比昨日同期、近 7 天对比前 7 天、近 30 天对比前 30 天；同时查看总量、日均、单任务平均、任务数及 Token 构成变化。 |
 | 模型费用对比 | 使用同一份今日 Token 构成，套入 DeepSeek、Qwen、GLM、Kimi、GPT 等可编辑价格进行理论费用比较。 |
-| 悬浮球与快速卡片 | 黑猫悬浮球可自由拖动、记忆位置；鼠标悬停时从侧边展开快速卡片，移开后自动收起。 |
+| 悬浮球与快速卡片 | 黑猫悬浮球可自由拖动、记忆位置；鼠标悬停时从侧边展开快速卡片；收纳后只保留可拖动的边缘箭头。 |
 | 一键分析数据包 | 复制“提示词 + 已脱敏统计数据”，粘贴给任意 AI，让它做消耗原因和优化建议分析。 |
 | 深浅主题与自定义封面 | 大型面板和悬浮卡同步切换主题；可上传图片并裁切为圆形悬浮球封面。 |
 
@@ -40,12 +40,12 @@
 在 PowerShell 中粘贴下面这一行即可：
 
 ```powershell
-$v='v1.1.0'; $p=Join-Path $env:TEMP 'Install-TokenTrace.ps1'; try { Invoke-WebRequest "https://cdn.jsdelivr.net/gh/lanm777888999-stack/codex-token-trace@$v/Install-TokenTrace.ps1" -OutFile $p -ErrorAction Stop } catch { Invoke-WebRequest "https://raw.githubusercontent.com/lanm777888999-stack/codex-token-trace/$v/Install-TokenTrace.ps1" -OutFile $p -ErrorAction Stop }; powershell -NoProfile -ExecutionPolicy Bypass -File $p
+$v='v1.1.1'; $p=Join-Path $env:TEMP 'Install-TokenTrace.ps1'; try { Invoke-WebRequest "https://cdn.jsdelivr.net/gh/lanm777888999-stack/codex-token-trace@$v/Install-TokenTrace.ps1" -OutFile $p -ErrorAction Stop } catch { Invoke-WebRequest "https://raw.githubusercontent.com/lanm777888999-stack/codex-token-trace/$v/Install-TokenTrace.ps1" -OutFile $p -ErrorAction Stop }; powershell -NoProfile -ExecutionPolicy Bypass -File $p
 ```
 
 安装器会：
 
-- 使用明确发布标签 `v1.1.0`，逐个下载 Token Trace 源文件与资源；
+- 使用明确发布标签 `v1.1.1`，逐个下载 Token Trace 源文件与资源；
 - 优先通过 jsDelivr CDN 下载，CDN 不可用时自动回退 GitHub Raw；
 - **不调用 GitHub API**，不需要 GitHub 登录、Access Token 或 `gh`，因此不会受 GitHub API 匿名限流影响；
 - 仅在本机缺少 Node.js 22+ 时，从 `nodejs.org` 下载官方运行时；
@@ -56,7 +56,7 @@ $v='v1.1.0'; $p=Join-Path $env:TEMP 'Install-TokenTrace.ps1'; try { Invoke-WebRe
 
 ## 安装方式二：便携压缩包
 
-1. 下载 [TokenTrace-v1.1.0-portable.zip](https://github.com/lanm777888999-stack/codex-token-trace/releases/download/v1.1.0/TokenTrace-v1.1.0-portable.zip)。
+1. 下载 [TokenTrace-v1.1.1-portable.zip](https://github.com/lanm777888999-stack/codex-token-trace/releases/download/v1.1.1/TokenTrace-v1.1.1-portable.zip)。
 2. 解压到任意本地文件夹（不要直接在压缩包预览器中运行）。
 3. 双击 `Install.cmd`；以后正常打开 Codex / ChatGPT 桌面版即可。
 
@@ -99,7 +99,8 @@ powershell -ExecutionPolicy Bypass -File .\floating-panel.ps1
 
 - 悬浮入口是经过抗锯齿圆形裁切的图片球；默认封面为 `assets/token_black_cat.png`，位置会记住。
 - 鼠标悬停在球上时，快速卡片从球的侧边展开；移到卡片上可继续操作，离开两者后自动收起。
-- 拖到桌面左侧或右侧会自动吸附并显示收纳箭头；点击箭头可将球藏入屏幕边缘，再次点击恢复。
+- 拖到桌面左侧或右侧会自动吸附并显示收纳箭头；点击后黑猫悬浮球会完全隐藏，只留下一个 `36 × 52` 的边缘箭头标签。
+- 收纳后的箭头可以沿屏幕边缘继续拖动并自动贴近最近一侧；轻点箭头即可恢复完整悬浮球。位置会继续保存在本机，并兼容高 DPI / 多显示器坐标。
 - 在浏览器大型界面左侧点击「更换悬浮封面」可上传图片，工具会自动居中裁切为圆形 PNG，并保存到 `%LOCALAPPDATA%\ccm-token-spend\floating-cover.png`。
 - 悬浮卡保持简洁：最近活动任务、本轮 Token、今日累计、缓存命中、打开大型界面和复制数据包。
 - 大型界面支持深色 / 浅色主题切换，主题偏好保存在本机浏览器中。
@@ -179,7 +180,7 @@ node token-stats.mjs --all            # 所有对话的累计消耗
 
 欢迎大家测试后分享自己的运行环境，帮助项目收集更多兼容性数据。请在 [GitHub Discussions](https://github.com/lanm777888999-stack/codex-token-trace/discussions) 的 **General** 分类新建讨论，按模板填写即可（会自动带上「测试报告」标签）：
 
-- **Release 版本号**：如 `v1.1.0`（命令行或便携包）
+- **Release 版本号**：如 `v1.1.1`（命令行或便携包）
 - **操作系统**：如 Windows 10 / Windows 11
 - **Codex 桌面版版本号**：如 `26.727.6591.0`
 - **是否成功运行**：成功 / 部分功能异常 / 失败

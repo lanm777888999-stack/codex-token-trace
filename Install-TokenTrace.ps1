@@ -10,7 +10,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$ReleaseVersion = "v1.1.0"
+$ReleaseVersion = "v1.1.1"
 $NodeVersion = "v24.14.0"
 $NodeArchiveName = "node-$NodeVersion-win-x64.zip"
 $NodeArchiveUrl = "https://nodejs.org/dist/$NodeVersion/$NodeArchiveName"
